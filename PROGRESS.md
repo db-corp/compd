@@ -169,6 +169,17 @@
 
 ---
 
+## UI Polish — COMPLETE
+
+- [x] **Mobile** — Fixed filter chip clipping on Explore tab (flexGrow/flexShrink: 0, increased padding)
+- [x] **Mobile** — Smooth native navigation transitions using `react-native-screens` (no new dependencies)
+  - Auth stack: `animation: "fade"`
+  - Onboarding stack: `animation: "slide_from_right"`
+  - Tab navigator: `animation: "shift"`
+- [x] **Mobile** — Fixed Profile tab duplicate header (added `headerShown: false`, matches Explore/Deals pattern)
+
+---
+
 ## File Inventory
 
 ### Convex Backend (15 files)

@@ -17,17 +17,11 @@ import {
   Check,
 } from "lucide-react";
 import LoadingState from "@/components/ui/LoadingState";
+import { CONTENT_CATEGORIES } from "@/lib/constants";
 
-const CONTENT_CATEGORIES = [
+const CONTENT_CATEGORY_OPTIONS = [
   { value: "", label: "All types" },
-  { value: "food_photo", label: "Food Photo" },
-  { value: "food_video", label: "Food Video" },
-  { value: "ambiance", label: "Ambiance" },
-  { value: "service_experience", label: "Service Experience" },
-  { value: "product_showcase", label: "Product Showcase" },
-  { value: "before_after", label: "Before & After" },
-  { value: "review_testimonial", label: "Review / Testimonial" },
-  { value: "other", label: "Other" },
+  ...CONTENT_CATEGORIES,
 ];
 
 const SORT_OPTIONS = [
@@ -80,7 +74,22 @@ export default function ContentPage() {
     if (!archives) return;
     const selected = archives.filter((a) => selectedIds.has(a._id));
     for (const archive of selected) {
-      window.open(archive.originalUrl, "_blank");
+      // Use fetch + blob + anchor pattern to avoid popup blocking
+      try {
+        const response = await fetch(archive.originalUrl);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = `content-${archive._id}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      } catch {
+        // Fallback: open in new tab (may be blocked for 2+)
+        window.open(archive.originalUrl, "_blank");
+      }
       await markDownloaded({ id: archive._id });
     }
   }
@@ -117,7 +126,7 @@ export default function ContentPage() {
             onChange={(e) => setCategoryFilter(e.target.value)}
             className="text-sm border border-neutral-200 rounded-lg px-3 py-1.5 bg-white"
           >
-            {CONTENT_CATEGORIES.map((cat) => (
+            {CONTENT_CATEGORY_OPTIONS.map((cat) => (
               <option key={cat.value} value={cat.value}>
                 {cat.label}
               </option>

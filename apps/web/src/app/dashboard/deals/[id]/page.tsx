@@ -24,6 +24,7 @@ import {
   Copy,
 } from "lucide-react";
 import LoadingState from "@/components/ui/LoadingState";
+import { REVISION_REASON_LABELS } from "@/lib/constants";
 
 const STATE_LABELS: Record<string, { label: string; color: string }> = {
   applied: { label: "Applied", color: "bg-accent-100 text-accent-600" },
@@ -264,16 +265,7 @@ export default function DealDetailPage() {
           </div>
           <p className="text-xs text-neutral-500 mb-2">Select the reason(s) for revision:</p>
           <div className="grid grid-cols-2 gap-2 mb-3">
-            {[
-              { value: "missing_business_tag", label: "Missing business tag" },
-              { value: "missing_location_tag", label: "Missing location tag" },
-              { value: "missing_attribution_code", label: "Missing attribution code" },
-              { value: "wrong_content_type", label: "Wrong content type" },
-              { value: "missing_required_hashtags", label: "Missing required hashtags" },
-              { value: "wrong_business_tagged", label: "Wrong business tagged" },
-              { value: "content_not_public", label: "Content not public" },
-              { value: "content_removed", label: "Content removed" },
-            ].map((reason) => (
+            {Object.entries(REVISION_REASON_LABELS).map(([value, label]) => ({ value, label })).map((reason) => (
               <label
                 key={reason.value}
                 className={`flex items-center gap-2 px-3 py-2 rounded-md border text-sm cursor-pointer transition-colors ${

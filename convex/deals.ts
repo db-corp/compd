@@ -462,23 +462,14 @@ export const submitContent = mutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch(args.dealId, {
-      state: "content_submitted",
-      stateUpdatedAt: now,
-      contentSubmittedAt: now,
-      contentUrls: args.contentUrls,
-      stateHistory: addStateTransition(
-        deal, deal.state, "content_submitted", "creator_submit_content", "creator"
-      ),
-      updatedAt: now,
-    });
-
-    // For MVP, auto-verify content (skip verification pipeline)
-    // In production, this would check tags, hashtags, content type, etc.
+    // For MVP, auto-verify content (skip verification pipeline).
+    // Single patch: submit + verify in one go to avoid stale-state overwrites.
     await ctx.db.patch(args.dealId, {
       state: "content_verified",
       stateUpdatedAt: now,
+      contentSubmittedAt: now,
       contentVerifiedAt: now,
+      contentUrls: args.contentUrls,
       stateHistory: [
         ...addStateTransition(
           deal, deal.state, "content_submitted", "creator_submit_content", "creator"
@@ -640,8 +631,13 @@ export const requestRevision = mutation({
 export const complete = mutation({
   args: { dealId: v.id("deals") },
   handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const business = await getBusinessForUser(ctx, user._id);
+    if (!business) throw new Error("No business profile found");
+
     const deal = await ctx.db.get(args.dealId);
     if (!deal) throw new Error("Deal not found");
+    if (deal.businessId !== business._id) throw new Error("Not your deal");
     if (deal.state !== "business_reviewed") {
       throw new Error("Deal must be reviewed before completion");
     }
@@ -671,13 +667,10 @@ export const complete = mutation({
       });
     }
 
-    // Update business stats
-    const business = await ctx.db.get(deal.businessId);
-    if (business) {
-      await ctx.db.patch(deal.businessId, {
-        totalCompletedDeals: business.totalCompletedDeals + 1,
-      });
-    }
+    // Update business stats (reuse business from auth check above)
+    await ctx.db.patch(deal.businessId, {
+      totalCompletedDeals: business.totalCompletedDeals + 1,
+    });
 
     // Update creator stats + recalculate trust tier
     const creator = await ctx.db.get(deal.creatorId);
@@ -706,13 +699,27 @@ export const complete = mutation({
     // Archive content with usage rights
     if (deal.contentUrls && deal.contentUrls.length > 0) {
       const usageRights = USAGE_RIGHTS_BY_TIER[deal.contractTerms.contentTier] ?? USAGE_RIGHTS_BY_TIER[1];
-      for (const url of deal.contentUrls) {
+      for (let i = 0; i < deal.contentUrls.length; i++) {
+        const url = deal.contentUrls[i];
+        // Detect platform from URL hostname
+        let platform = "instagram";
+        try {
+          const hostname = new URL(url).hostname.toLowerCase();
+          if (hostname.includes("tiktok")) platform = "tiktok";
+          else if (hostname.includes("youtube")) platform = "youtube";
+        } catch {
+          // Fallback to instagram if URL can't be parsed
+        }
+        // Match content type to the corresponding deliverable (by index), falling back to first
+        const contentType = deal.contractTerms.deliverables[i]?.type
+          ?? deal.contractTerms.deliverables[0]?.type
+          ?? "post";
         await ctx.db.insert("contentArchives", {
           dealId: args.dealId,
           businessId: deal.businessId,
           creatorId: deal.creatorId,
-          platform: url.includes("tiktok") ? "tiktok" : "instagram",
-          contentType: deal.contractTerms.deliverables[0]?.type ?? "post",
+          platform,
+          contentType,
           originalUrl: url,
           isStillLive: true,
           lastCheckedAt: now,
@@ -849,28 +856,28 @@ export const autoApproveContent = internalMutation({
       updatedAt: now,
     });
 
-    // Notify business that content was auto-approved
+    // Notify both parties
+    const offer = await ctx.db.get(deal.offerId);
+    const offerTitle = offer?.title ?? "a deal";
+
     const business = await ctx.db.get(deal.businessId);
     if (business) {
-      const offer = await ctx.db.get(deal.offerId);
       await ctx.runMutation(internal.notifications.create, {
         userId: business.userId,
         type: "content_auto_approved",
         title: "Content auto-approved",
-        body: `Content for "${offer?.title ?? "a deal"}" was auto-approved after 24h without review`,
+        body: `Content for "${offerTitle}" was auto-approved after 24h without review`,
         dealId: args.dealId,
       });
     }
 
-    // Notify creator
     const creator = await ctx.db.get(deal.creatorId);
     if (creator) {
-      const offer = await ctx.db.get(deal.offerId);
       await ctx.runMutation(internal.notifications.create, {
         userId: creator.userId,
         type: "content_auto_approved",
         title: "Content approved!",
-        body: `Your content for "${offer?.title ?? "a deal"}" has been auto-approved`,
+        body: `Your content for "${offerTitle}" has been auto-approved`,
         dealId: args.dealId,
       });
     }

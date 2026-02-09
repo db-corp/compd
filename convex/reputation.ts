@@ -142,16 +142,17 @@ export const assessQualityThresholds = internalQuery({
       }
     }
 
-    // Check consecutive demotion
+    // Check consecutive demotion (unrated deals break the streak)
     let consecutiveBelow = 0;
     for (const deal of completedDeals) {
-      if (deal.businessRating) {
-        const avgRating = (deal.businessRating.contentQuality + deal.businessRating.professionalism) / 2;
-        if (avgRating < QUALITY_TIER_RULES.CONSECUTIVE_DEMOTION.threshold) {
-          consecutiveBelow++;
-        } else {
-          break;
-        }
+      if (!deal.businessRating) {
+        break;
+      }
+      const avgRating = (deal.businessRating.contentQuality + deal.businessRating.professionalism) / 2;
+      if (avgRating < QUALITY_TIER_RULES.CONSECUTIVE_DEMOTION.threshold) {
+        consecutiveBelow++;
+      } else {
+        break;
       }
     }
     if (consecutiveBelow >= QUALITY_TIER_RULES.CONSECUTIVE_DEMOTION.consecutiveBelow) {

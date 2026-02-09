@@ -763,6 +763,9 @@ export const populate = mutation({
         checkedInAt: completedAt - 5 * day,
         checkinMethod: "geofence",
         businessConfirmedArrival: true,
+        contentUrls: [
+          `https://www.instagram.com/p/seed_content_${i}/`,
+        ],
         contentSubmittedAt: completedAt - 3 * day,
         contentVerifiedAt: completedAt - 2 * day,
         businessReviewedAt: completedAt - 1 * day,

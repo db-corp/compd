@@ -46,15 +46,17 @@ export const generateCode = internalMutation({
 
     // Generate a unique code (retry if collision)
     let code = generateCodeString(creatorName, businessName);
-    let attempts = 0;
-    while (attempts < 5) {
+    const maxAttempts = 5;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const existing = await ctx.db
         .query("attributionCodes")
         .withIndex("by_code", (q) => q.eq("code", code))
         .unique();
       if (!existing) break;
+      if (attempt === maxAttempts - 1) {
+        throw new Error("Failed to generate unique attribution code after maximum attempts");
+      }
       code = generateCodeString(creatorName, businessName);
-      attempts++;
     }
 
     const codeId = await ctx.db.insert("attributionCodes", {
@@ -83,6 +85,29 @@ export const generateCode = internalMutation({
 export const getByDeal = query({
   args: { dealId: v.id("deals") },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) return null;
+
+    // Verify caller is a party to this deal
+    const deal = await ctx.db.get(args.dealId);
+    if (!deal) return null;
+
+    const business = await getBusinessForUser(ctx, user._id);
+    const creator = await ctx.db
+      .query("creators")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .unique();
+
+    const isBusiness = business && deal.businessId === business._id;
+    const isCreator = creator && deal.creatorId === creator._id;
+    if (!isBusiness && !isCreator) return null;
+
     return await ctx.db
       .query("attributionCodes")
       .withIndex("by_deal", (q) => q.eq("dealId", args.dealId))

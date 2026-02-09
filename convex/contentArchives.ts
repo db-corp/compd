@@ -92,8 +92,21 @@ export const listByBusiness = query({
 export const getById = query({
   args: { id: v.id("contentArchives") },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) return null;
+
     const archive = await ctx.db.get(args.id);
     if (!archive) return null;
+
+    // Verify the caller owns the business
+    const business = await getBusinessForUser(ctx, user._id);
+    if (!business || archive.businessId !== business._id) return null;
 
     const creator = await ctx.db.get(archive.creatorId);
     const creatorUser = creator ? await ctx.db.get(creator.userId) : null;
@@ -175,7 +188,11 @@ export const markDownloaded = mutation({
 export const updateCategory = mutation({
   args: {
     id: v.id("contentArchives"),
-    contentCategory: v.string(),
+    contentCategory: v.union(
+      v.literal("food_photo"), v.literal("food_video"), v.literal("ambiance"),
+      v.literal("service_experience"), v.literal("product_showcase"),
+      v.literal("before_after"), v.literal("review_testimonial"), v.literal("other")
+    ),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -187,7 +204,7 @@ export const updateCategory = mutation({
     if (archive.businessId !== business._id) throw new Error("Not your content");
 
     await ctx.db.patch(args.id, {
-      contentCategory: args.contentCategory as any,
+      contentCategory: args.contentCategory,
     });
   },
 });

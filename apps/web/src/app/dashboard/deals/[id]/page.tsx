@@ -264,7 +264,7 @@ export default function DealDetailPage() {
             </span>
           </div>
           <p className="text-xs text-neutral-500 mb-2">Select the reason(s) for revision:</p>
-          <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
             {Object.entries(REVISION_REASON_LABELS).map(([value, label]) => ({ value, label })).map((reason) => (
               <label
                 key={reason.value}
@@ -302,7 +302,7 @@ export default function DealDetailPage() {
       {showRatingForm && (
         <div className="bg-accent-50 border border-accent-200 rounded-lg p-4 mb-6">
           <p className="text-sm font-medium text-neutral-700 mb-3">Rate this creator</p>
-          <div className="grid grid-cols-2 gap-4 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
             <div>
               <label className="text-xs text-neutral-500">Content quality (1-5)</label>
               <input type="number" min={1} max={5} value={rating.contentQuality} onChange={(e) => setRating({ ...rating, contentQuality: parseInt(e.target.value) || 5 })} className="w-full border border-neutral-200 rounded-md px-2 py-1.5 text-sm mt-1" />

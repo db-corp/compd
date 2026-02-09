@@ -145,7 +145,7 @@ export default function SettingsPage() {
             className={INPUT_CLASS}
           />
         </Field>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Field label="City">
             <input
               type="text"
@@ -252,7 +252,7 @@ export default function SettingsPage() {
             </p>
           </div>
         )}
-        <div className="mt-4 grid grid-cols-3 gap-4">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-neutral-50 rounded-lg p-3 text-center">
             <p className="text-xs text-neutral-500 font-medium">Plan</p>
             <p className="text-sm font-bold text-neutral-800 mt-1 capitalize">
@@ -279,7 +279,7 @@ export default function SettingsPage() {
         icon={<Instagram size={18} strokeWidth={1.5} className="text-pink-500" />}
         title="Account stats"
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-neutral-50 rounded-lg p-4">
             <p className="text-xs text-neutral-500 font-medium">
               Completed deals

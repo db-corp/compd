@@ -333,6 +333,41 @@ The business experience should feel like a lightweight marketing tool, not a soc
 - **Metrics:** Fulfillment rate, trust tier progress, total earned value
 - **Earnings:** For deals with cash components — payment history, pending payments
 
+### 4.9 Attribution & ROI Tracking (Amendment)
+
+Every approved deal auto-generates a unique promo code (format: `CREATOR_INITIALS-BUSINESS_SHORT-RANDOM4`). Businesses can:
+- View all attribution codes on their dashboard
+- Record redemptions when customers use the codes
+- Track estimated revenue per code and per creator
+- See per-creator ROI breakdown (deals, redemptions, revenue, CPA)
+
+**Deferred:** Referral link redirects (`/r/CODE`), QR code generation, revenue self-reporting.
+
+### 4.10 Content Library / UGC Gallery (Amendment)
+
+Full gallery view of all content created for the business:
+- Filter by content type, creator, and minimum rating
+- Sort by newest, highest rated, or most engagement
+- Grid view with content cards showing creator info, platform, type, rating, engagement stats
+- Download individual pieces or bulk-select for batch download
+- Usage rights indicators (social repost, website use, ad use) based on content tier
+- Usage rights summary footer
+
+### 4.11 Content Review Enhancements (Amendment)
+
+- **24-hour auto-approve:** If business doesn't review content within 24 hours, it auto-approves
+- **1-revision limit:** Businesses can request at most 1 revision per deal
+- **Objective revision reasons:** Checkbox selection from predefined reasons (missing tag, wrong content type, etc.) plus optional note
+
+### 4.12 Creator Eligibility Requirements (Amendment)
+
+Minimum requirements for creator participation (currently informational — enforcement deferred to Instagram OAuth):
+- 1,000+ followers
+- 2%+ engagement rate
+- Public account
+- 90+ day account age
+- 15% local audience OR 200+ local followers
+
 ---
 
 ## 5. Trust & Safety

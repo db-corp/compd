@@ -1,8 +1,9 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { requireUser, getBusinessForUser, getCreatorForUser } from "./helpers";
-import { VALID_DEAL_TRANSITIONS, DEPOSIT_AMOUNTS, TERMINAL_DEAL_STATES } from "./constants";
+import { VALID_DEAL_TRANSITIONS, DEPOSIT_AMOUNTS, TERMINAL_DEAL_STATES, AUTO_APPROVE_DELAY_MS, MAX_REVISIONS, USAGE_RIGHTS_BY_TIER } from "./constants";
+import { calculateTrustTier, calculateReliabilityScore } from "./reputation";
 
 // ============================================================
 // STATE MACHINE
@@ -197,6 +198,17 @@ export const approve = mutation({
         amount: deal.commitmentDeposit.amount,
         creatorId: deal.creatorId,
       });
+    }
+
+    // Generate attribution code
+    const attributionCodeId = await ctx.runMutation(internal.attribution.generateCode, {
+      dealId: args.dealId,
+      businessId: deal.businessId,
+      creatorId: deal.creatorId,
+      offerId: deal.offerId,
+    });
+    if (attributionCodeId) {
+      await ctx.db.patch(args.dealId, { attributionCodeId });
     }
 
     // Notify creator
@@ -482,6 +494,14 @@ export const submitContent = mutation({
       updatedAt: now,
     });
 
+    // Schedule 24h auto-approve timer
+    const autoApproveJobId = await ctx.scheduler.runAfter(
+      AUTO_APPROVE_DELAY_MS,
+      internal.deals.autoApproveContent,
+      { dealId: args.dealId }
+    );
+    await ctx.db.patch(args.dealId, { autoApproveJobId });
+
     // Notify business that content was submitted
     const business = await ctx.db.get(deal.businessId);
     if (business) {
@@ -490,7 +510,7 @@ export const submitContent = mutation({
         userId: business.userId,
         type: "content_submitted",
         title: "Content submitted",
-        body: `${user.name} submitted content for "${offer?.title ?? "a deal"}"`,
+        body: `${user.name} submitted content for "${offer?.title ?? "a deal"}". You have 24h to review before auto-approval.`,
         dealId: args.dealId,
       });
     }
@@ -514,12 +534,18 @@ export const approveContent = mutation({
       throw new Error(`Cannot approve content for deal in state "${deal.state}"`);
     }
 
+    // Cancel auto-approve timer if running
+    if (deal.autoApproveJobId) {
+      await ctx.scheduler.cancel(deal.autoApproveJobId);
+    }
+
     const now = Date.now();
     await ctx.db.patch(args.dealId, {
       state: "business_reviewed",
       stateUpdatedAt: now,
       businessReviewedAt: now,
       businessReviewAction: "approved",
+      autoApproveJobId: undefined,
       stateHistory: addStateTransition(
         deal, deal.state, "business_reviewed", "business_approve", "business"
       ),
@@ -547,7 +573,8 @@ export const approveContent = mutation({
 export const requestRevision = mutation({
   args: {
     dealId: v.id("deals"),
-    note: v.string(),
+    note: v.optional(v.string()),
+    revisionReasons: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -561,13 +588,26 @@ export const requestRevision = mutation({
       throw new Error(`Cannot request revision for deal in state "${deal.state}"`);
     }
 
+    // Enforce 1-revision limit
+    if ((deal.revisionCount ?? 0) >= MAX_REVISIONS) {
+      throw new Error("Maximum number of revisions already requested. Please approve the content or open a dispute.");
+    }
+
+    // Cancel auto-approve timer if running
+    if (deal.autoApproveJobId) {
+      await ctx.scheduler.cancel(deal.autoApproveJobId);
+    }
+
     const now = Date.now();
     await ctx.db.patch(args.dealId, {
       state: "revision_requested",
       stateUpdatedAt: now,
       revisionRequestedAt: now,
-      revisionNote: args.note,
+      revisionNote: args.note ?? (args.revisionReasons?.join(", ") ?? ""),
+      revisionReasons: args.revisionReasons,
+      revisionCount: (deal.revisionCount ?? 0) + 1,
       businessReviewAction: "revision_requested",
+      autoApproveJobId: undefined,
       stateHistory: addStateTransition(
         deal, deal.state, "revision_requested", "business_request_revision", "business"
       ),
@@ -578,11 +618,12 @@ export const requestRevision = mutation({
     const creator = await ctx.db.get(deal.creatorId);
     if (creator) {
       const offer = await ctx.db.get(deal.offerId);
+      const reasonText = args.revisionReasons?.join(", ") ?? args.note ?? "";
       await ctx.runMutation(internal.notifications.create, {
         userId: creator.userId,
         type: "revision_requested",
         title: "Revision requested",
-        body: `Revision needed for "${offer?.title ?? "a deal"}": ${args.note}`,
+        body: `Revision needed for "${offer?.title ?? "a deal"}": ${reasonText}`,
         dealId: args.dealId,
       });
     }
@@ -638,14 +679,53 @@ export const complete = mutation({
       });
     }
 
-    // Update creator stats
+    // Update creator stats + recalculate trust tier
     const creator = await ctx.db.get(deal.creatorId);
     if (creator) {
+      const newCompletedDeals = creator.totalCompletedDeals + 1;
+      const newTrustTier = calculateTrustTier({
+        totalCompletedDeals: newCompletedDeals,
+        fulfillmentRate: creator.fulfillmentRate,
+        averageContentRating: creator.averageContentRating,
+      });
+      const newReliabilityScore = calculateReliabilityScore({
+        fulfillmentRate: creator.fulfillmentRate,
+        onTimeRate: creator.onTimeRate,
+        averageContentRating: creator.averageContentRating,
+        totalCompletedDeals: newCompletedDeals,
+      });
       await ctx.db.patch(deal.creatorId, {
-        totalCompletedDeals: creator.totalCompletedDeals + 1,
+        totalCompletedDeals: newCompletedDeals,
         totalRedeemedDeals: creator.totalRedeemedDeals + 1,
+        trustTier: newTrustTier,
+        reliabilityScore: newReliabilityScore,
         metricsLastUpdatedAt: now,
       });
+    }
+
+    // Archive content with usage rights
+    if (deal.contentUrls && deal.contentUrls.length > 0) {
+      const usageRights = USAGE_RIGHTS_BY_TIER[deal.contractTerms.contentTier] ?? USAGE_RIGHTS_BY_TIER[1];
+      for (const url of deal.contentUrls) {
+        await ctx.db.insert("contentArchives", {
+          dealId: args.dealId,
+          businessId: deal.businessId,
+          creatorId: deal.creatorId,
+          platform: url.includes("tiktok") ? "tiktok" : "instagram",
+          contentType: deal.contractTerms.deliverables[0]?.type ?? "post",
+          originalUrl: url,
+          isStillLive: true,
+          lastCheckedAt: now,
+          archivedAt: now,
+          businessVisible: true,
+          businessDownloaded: false,
+          usageRights: {
+            canRepostSocial: usageRights.canRepostSocial,
+            canUseWebsite: usageRights.canUseWebsite,
+            canUseAds: usageRights.canUseAds,
+          },
+        });
+      }
     }
 
     // Notify both parties
@@ -737,6 +817,63 @@ export const rateBusiness = mutation({
       },
       updatedAt: Date.now(),
     });
+  },
+});
+
+// ============================================================
+// AUTO-APPROVE (scheduled function — 24h timer)
+// ============================================================
+
+/**
+ * Auto-approve content if business hasn't reviewed within 24h.
+ */
+export const autoApproveContent = internalMutation({
+  args: { dealId: v.id("deals") },
+  handler: async (ctx, args) => {
+    const deal = await ctx.db.get(args.dealId);
+    if (!deal) return;
+
+    // Only auto-approve if still in content_verified state
+    if (deal.state !== "content_verified") return;
+
+    const now = Date.now();
+    await ctx.db.patch(args.dealId, {
+      state: "business_reviewed",
+      stateUpdatedAt: now,
+      businessReviewedAt: now,
+      businessReviewAction: "auto_approved",
+      autoApproveJobId: undefined,
+      stateHistory: addStateTransition(
+        deal, deal.state, "business_reviewed", "auto_approve_24h", "system"
+      ),
+      updatedAt: now,
+    });
+
+    // Notify business that content was auto-approved
+    const business = await ctx.db.get(deal.businessId);
+    if (business) {
+      const offer = await ctx.db.get(deal.offerId);
+      await ctx.runMutation(internal.notifications.create, {
+        userId: business.userId,
+        type: "content_auto_approved",
+        title: "Content auto-approved",
+        body: `Content for "${offer?.title ?? "a deal"}" was auto-approved after 24h without review`,
+        dealId: args.dealId,
+      });
+    }
+
+    // Notify creator
+    const creator = await ctx.db.get(deal.creatorId);
+    if (creator) {
+      const offer = await ctx.db.get(deal.offerId);
+      await ctx.runMutation(internal.notifications.create, {
+        userId: creator.userId,
+        type: "content_auto_approved",
+        title: "Content approved!",
+        body: `Your content for "${offer?.title ?? "a deal"}" has been auto-approved`,
+        dealId: args.dealId,
+      });
+    }
   },
 });
 

@@ -20,6 +20,8 @@ import {
   ShieldAlert,
   DollarSign,
   Wallet,
+  Ticket,
+  Copy,
 } from "lucide-react";
 import LoadingState from "@/components/ui/LoadingState";
 
@@ -48,6 +50,7 @@ export default function DealDetailPage() {
   const messages = useQuery(api.messages.listByDeal, {
     dealId: dealId,
   });
+  const attributionCode = useQuery(api.attribution.getByDeal, { dealId: dealId });
   const approveDeal = useMutation(api.deals.approve);
   const declineDeal = useMutation(api.deals.decline);
   const confirmServiceMut = useMutation(api.deals.confirmService);
@@ -62,6 +65,7 @@ export default function DealDetailPage() {
 
   const [msgInput, setMsgInput] = useState("");
   const [revisionNote, setRevisionNote] = useState("");
+  const [selectedRevisionReasons, setSelectedRevisionReasons] = useState<string[]>([]);
   const [showRevisionForm, setShowRevisionForm] = useState(false);
   const [showRatingForm, setShowRatingForm] = useState(false);
   const [showDisputeForm, setShowDisputeForm] = useState(false);
@@ -102,14 +106,25 @@ export default function DealDetailPage() {
   }
 
   async function handleRevision() {
-    if (!revisionNote.trim()) return;
+    if (selectedRevisionReasons.length === 0 && !revisionNote.trim()) return;
     try {
-      await requestRevisionMut({ dealId: dealId, note: revisionNote.trim() });
+      await requestRevisionMut({
+        dealId: dealId,
+        note: revisionNote.trim() || undefined,
+        revisionReasons: selectedRevisionReasons.length > 0 ? selectedRevisionReasons : undefined,
+      });
       setShowRevisionForm(false);
       setRevisionNote("");
+      setSelectedRevisionReasons([]);
     } catch (e: any) {
       setError(e.message);
     }
+  }
+
+  function toggleRevisionReason(reason: string) {
+    setSelectedRevisionReasons((prev) =>
+      prev.includes(reason) ? prev.filter((r) => r !== reason) : [...prev, reason]
+    );
   }
 
   async function handleRate() {
@@ -211,9 +226,15 @@ export default function DealDetailPage() {
               <button onClick={() => handleAction("approve_content")} className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-500 text-white rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors">
                 <ThumbsUp size={14} /> Approve Content
               </button>
-              <button onClick={() => setShowRevisionForm(!showRevisionForm)} className="inline-flex items-center gap-1.5 px-4 py-2 border border-neutral-200 text-neutral-600 rounded-lg text-sm font-medium hover:bg-neutral-50 transition-colors">
-                <RotateCcw size={14} /> Request Revision
-              </button>
+              {(deal.revisionCount ?? 0) < 1 ? (
+                <button onClick={() => setShowRevisionForm(!showRevisionForm)} className="inline-flex items-center gap-1.5 px-4 py-2 border border-neutral-200 text-neutral-600 rounded-lg text-sm font-medium hover:bg-neutral-50 transition-colors">
+                  <RotateCcw size={14} /> Request Revision
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-4 py-2 border border-neutral-100 text-neutral-400 rounded-lg text-sm font-medium cursor-not-allowed">
+                  <RotateCcw size={14} /> Revision used
+                </span>
+              )}
               <button onClick={() => setShowDisputeForm(!showDisputeForm)} className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors">
                 <AlertTriangle size={14} /> Dispute
               </button>
@@ -235,11 +256,52 @@ export default function DealDetailPage() {
       {/* Revision form */}
       {showRevisionForm && (
         <div className="bg-warning/5 border border-warning/20 rounded-lg p-4 mb-6">
-          <p className="text-sm font-medium text-neutral-700 mb-2">Request revision</p>
-          <textarea value={revisionNote} onChange={(e) => setRevisionNote(e.target.value)} rows={2} placeholder="What needs to change..." className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm mb-2" />
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium text-neutral-700">Request revision</p>
+            <span className="text-xs text-neutral-400">
+              {(deal.revisionCount ?? 0) < 1 ? "1 revision remaining" : "No revisions remaining"}
+            </span>
+          </div>
+          <p className="text-xs text-neutral-500 mb-2">Select the reason(s) for revision:</p>
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            {[
+              { value: "missing_business_tag", label: "Missing business tag" },
+              { value: "missing_location_tag", label: "Missing location tag" },
+              { value: "missing_attribution_code", label: "Missing attribution code" },
+              { value: "wrong_content_type", label: "Wrong content type" },
+              { value: "missing_required_hashtags", label: "Missing required hashtags" },
+              { value: "wrong_business_tagged", label: "Wrong business tagged" },
+              { value: "content_not_public", label: "Content not public" },
+              { value: "content_removed", label: "Content removed" },
+            ].map((reason) => (
+              <label
+                key={reason.value}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md border text-sm cursor-pointer transition-colors ${
+                  selectedRevisionReasons.includes(reason.value)
+                    ? "border-warning bg-warning/10 text-neutral-800"
+                    : "border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedRevisionReasons.includes(reason.value)}
+                  onChange={() => toggleRevisionReason(reason.value)}
+                  className="accent-warning"
+                />
+                {reason.label}
+              </label>
+            ))}
+          </div>
+          <textarea value={revisionNote} onChange={(e) => setRevisionNote(e.target.value)} rows={2} placeholder="Additional notes (optional)..." className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm mb-2" />
           <div className="flex gap-2">
-            <button onClick={handleRevision} className="px-3 py-1.5 bg-warning text-white rounded-lg text-sm font-medium">Send revision request</button>
-            <button onClick={() => setShowRevisionForm(false)} className="px-3 py-1.5 text-sm text-neutral-500">Cancel</button>
+            <button
+              onClick={handleRevision}
+              disabled={selectedRevisionReasons.length === 0 && !revisionNote.trim()}
+              className="px-3 py-1.5 bg-warning text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Send revision request
+            </button>
+            <button onClick={() => { setShowRevisionForm(false); setSelectedRevisionReasons([]); }} className="px-3 py-1.5 text-sm text-neutral-500">Cancel</button>
           </div>
         </div>
       )}
@@ -478,6 +540,37 @@ export default function DealDetailPage() {
                     <ExternalLink size={14} /> {url}
                   </a>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Attribution code */}
+          {attributionCode && (
+            <div className="bg-white border border-neutral-100 rounded-lg p-5 shadow-sm">
+              <h2 className="font-serif text-lg text-neutral-800 mb-3 flex items-center gap-2">
+                <Ticket size={16} strokeWidth={1.5} className="text-primary-500" />
+                Attribution Code
+              </h2>
+              <div className="flex items-center gap-3 bg-primary-50 rounded-lg px-4 py-3 mb-3">
+                <code className="text-lg font-bold text-primary-600 tracking-wide">
+                  {attributionCode.code}
+                </code>
+                <button
+                  onClick={() => navigator.clipboard.writeText(attributionCode.code)}
+                  className="p-1.5 text-primary-400 hover:text-primary-600 transition-colors"
+                  title="Copy code"
+                >
+                  <Copy size={14} />
+                </button>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-neutral-500">
+                <span>{attributionCode.redemptions} redemptions</span>
+                {attributionCode.estimatedRevenue !== undefined && attributionCode.estimatedRevenue > 0 && (
+                  <span>${attributionCode.estimatedRevenue.toLocaleString()} est. revenue</span>
+                )}
+                <span className={attributionCode.isActive ? "text-success" : "text-neutral-400"}>
+                  {attributionCode.isActive ? "Active" : "Inactive"}
+                </span>
               </div>
             </div>
           )}

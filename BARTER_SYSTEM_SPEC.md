@@ -559,6 +559,41 @@ Trust tiers can decrease:
 - 2+ business-sustained disputes in 30 days → drop one tier
 - Account flagged for fraud → drop to "new" pending review
 
+### Quality-Score-to-Trust-Tier Linkage (Amendment)
+
+Quality thresholds trigger tier adjustments based on recent deal performance:
+
+| Rule | Trigger | Action |
+|------|---------|--------|
+| Immediate warning | Single business rating < 2.0 | Notify creator, flag for review |
+| Rolling demotion | Avg rating < 3.0 over last 10 deals OR verification fail rate > 30% OR attribution code missing > 50% | Recommend tier demotion |
+| Consecutive demotion | 3+ consecutive deals rated below 3.0 | Recommend tier demotion |
+| Quality bonus | Avg rating >= 4.5 over last 20 deals | Recommend tier promotion |
+
+**Implementation:** Constants defined in `convex/constants.ts` (`QUALITY_TIER_RULES`). Assessment logic in `convex/reputation.ts` (`assessQualityThresholds`). Automated enforcement deferred to cron job.
+
+### Creator Eligibility Requirements (Amendment)
+
+Minimum requirements for creator onboarding (enforcement deferred to Instagram OAuth integration):
+
+| Requirement | Threshold |
+|-------------|-----------|
+| Minimum followers | 1,000 |
+| Minimum engagement rate | 2% |
+| Account visibility | Must be public |
+| Account age | 90+ days |
+| Local audience | 15% local OR 200 absolute local followers |
+
+**Implementation:** Constants in `CREATOR_ELIGIBILITY`, validation in `checkCreatorEligibility()`.
+
+### Attribution Code Requirement (Amendment)
+
+Every approved deal generates a unique attribution (promo) code:
+- Format: `CREATOR_INITIALS-BUSINESS_SHORT-RANDOM4` (e.g., "JT-BIDAMA-X7K2")
+- Auto-generated on deal approval via `convex/attribution.ts`
+- Business can track redemptions and estimated revenue per code
+- Codes stored in `attributionCodes` table, events in `attributionEvents` table
+
 ---
 
 ## 7. Financial Flows
@@ -613,6 +648,27 @@ Deal UNFULFILLED or NO_SHOW
 ---
 
 ## 8. Content Verification Technical Detail
+
+### Content Review Enhancements (Amendment)
+
+**24-Hour Auto-Approve Timer:**
+When content enters `content_verified` state, a 24-hour timer is scheduled. If the business does not review (approve or request revision) within 24 hours, the content is auto-approved and the deal transitions to `business_reviewed`.
+
+**1-Revision Limit:**
+Businesses may request at most 1 revision per deal. After the revision is used, the business must either approve the content or open a dispute. This prevents revision loops and protects creators.
+
+**Objective Revision Reasons:**
+Instead of free-text-only revision requests, businesses select from a predefined enum of objective reasons:
+- Missing business tag
+- Missing location tag
+- Missing attribution code
+- Wrong content type
+- Missing required hashtags
+- Wrong business tagged
+- Content not public
+- Content removed
+
+An optional free-text note field remains available for additional context.
 
 ### Verification Pipeline
 

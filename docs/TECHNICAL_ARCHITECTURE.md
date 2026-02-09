@@ -412,7 +412,11 @@ export default defineSchema({
     businessReviewAction: v.optional(v.string()), // "approved" | "revision_requested" | "flagged"
     revisionRequestedAt: v.optional(v.number()),
     revisionNote: v.optional(v.string()),
-    
+    revisionReasons: v.optional(v.array(v.string())),   // Amendment: enum values from REVISION_REASONS
+    revisionCount: v.optional(v.number()),               // Amendment: tracks revision attempts (max 1)
+    autoApproveJobId: v.optional(v.id("_scheduled_functions")), // Amendment: ref to 24h timer
+    attributionCodeId: v.optional(v.id("attributionCodes")),    // Amendment: link to generated code
+
     // Financial
     commitmentDeposit: v.object({
       required: v.boolean(),
@@ -528,12 +532,72 @@ export default defineSchema({
     // Persistence tracking
     isStillLive: v.boolean(),
     lastCheckedAt: v.number(),
-    
+
     archivedAt: v.number(),
+
+    // Content library extension fields (Amendment)
+    businessVisible: v.optional(v.boolean()),
+    businessDownloaded: v.optional(v.boolean()),
+    usageRights: v.optional(v.object({
+      canRepostSocial: v.boolean(),
+      canUseWebsite: v.boolean(),
+      canUseAds: v.boolean(),
+      expiresAt: v.optional(v.number()),
+    })),
+    contentCategory: v.optional(v.union(
+      v.literal("food_photo"), v.literal("food_video"), v.literal("ambiance"),
+      v.literal("service_experience"), v.literal("product_showcase"),
+      v.literal("before_after"), v.literal("review_testimonial"), v.literal("other")
+    )),
+    tags: v.optional(v.array(v.string())),
+    engagementRate: v.optional(v.number()),
+    impressions: v.optional(v.number()),
   })
     .index("by_deal", ["dealId"])
     .index("by_business", ["businessId"])
     .index("by_creator", ["creatorId"]),
+
+  // ============================================================
+  // ATTRIBUTION CODES (Amendment — auto-generated on deal approval)
+  // ============================================================
+  attributionCodes: defineTable({
+    dealId: v.id("deals"),
+    businessId: v.id("businesses"),
+    creatorId: v.id("creators"),
+    offerId: v.id("offers"),
+    code: v.string(),                    // e.g., "JT-BIDAMA-X7K2"
+    codeType: v.literal("promo"),        // Only promo for now
+    incentive: v.optional(v.object({
+      type: v.union(v.literal("discount_percent"), v.literal("discount_flat"), v.literal("free_item"), v.literal("none")),
+      value: v.optional(v.number()),
+      description: v.optional(v.string()),
+    })),
+    scans: v.number(),
+    redemptions: v.number(),
+    estimatedRevenue: v.optional(v.number()),
+    isActive: v.boolean(),
+    expiresAt: v.optional(v.number()),
+  })
+    .index("by_deal", ["dealId"])
+    .index("by_business", ["businessId"])
+    .index("by_code", ["code"])
+    .index("by_creator", ["creatorId"]),
+
+  // ============================================================
+  // ATTRIBUTION EVENTS (Amendment — logged when codes are redeemed)
+  // ============================================================
+  attributionEvents: defineTable({
+    codeId: v.id("attributionCodes"),
+    businessId: v.id("businesses"),
+    eventType: v.union(v.literal("code_redeemed"), v.literal("revenue_reported")),
+    metadata: v.optional(v.object({
+      revenue: v.optional(v.number()),
+      source: v.optional(v.string()),
+    })),
+    timestamp: v.number(),
+  })
+    .index("by_code", ["codeId"])
+    .index("by_business_time", ["businessId", "timestamp"]),
 
   // ============================================================
   // DISPUTES
@@ -586,6 +650,34 @@ export default defineSchema({
     .index("by_pair", ["blockerId", "blockedId"]),
 });
 ```
+
+### Amendment Constants (`convex/constants.ts`)
+
+New constants added for competitive intelligence amendment features:
+
+- **`REVISION_REASONS`** — Objective revision reason enum (8 values: missing_business_tag, missing_location_tag, etc.)
+- **`QUALITY_TIER_RULES`** — Thresholds for quality-based tier demotion/promotion
+- **`CREATOR_ELIGIBILITY`** — Minimum requirements for creator onboarding (1K followers, 2% engagement, etc.)
+- **`USAGE_RIGHTS_BY_TIER`** — Content usage rights (social/website/ads) by content tier
+- **`TRUST_TIER_THRESHOLDS`** — Concrete thresholds for each trust tier level
+- **`CONTENT_CATEGORIES`** — Content categorization enum for the gallery
+- **`AUTO_APPROVE_DELAY_MS`** — 24-hour timer for auto-approval (86400000ms)
+- **`MAX_REVISIONS`** — Maximum revision requests per deal (1)
+
+### Amendment Backend Files
+
+| File | Purpose |
+|------|---------|
+| `convex/attribution.ts` | Attribution code generation, tracking, business summary queries |
+| `convex/reputation.ts` | Trust tier calculation, reliability scoring, quality threshold assessment, creator eligibility |
+| `convex/contentArchives.ts` | Content library queries with filtering, sorting, categorization, download tracking |
+
+### Amendment: Deal State Flow Updates
+
+- **content_verified → business_reviewed**: Now includes 24h auto-approve timer via `ctx.scheduler.runAfter`
+- **content_verified → revision_requested**: Limited to 1 revision; cancels auto-approve timer
+- **approved**: Now generates attribution code via `internal.attribution.generateCode`
+- **completed**: Now recalculates creator trust tier and reliability score, archives content with usage rights
 
 ---
 

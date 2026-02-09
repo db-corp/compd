@@ -858,6 +858,85 @@ export const populate = mutation({
       updatedAt: now - 8 * day,
     });
 
-    return `Seeded: ${businessData.length} businesses, ${creatorData.length} creators, ${offersData.length} offers, 15 deals`;
+    // ============================================================
+    // ATTRIBUTION CODES (for completed deals)
+    // ============================================================
+    // Create attribution codes for the 4 completed deals + the content_verified deal
+    const allDeals = await ctx.db.query("deals").collect();
+    const approvedOrCompletedDeals = allDeals.filter(
+      (d) => ["completed", "content_verified", "business_reviewed"].includes(d.state)
+    );
+
+    let attributionCount = 0;
+    for (const deal of approvedOrCompletedDeals) {
+      const creator = await ctx.db.get(deal.creatorId);
+      const creatorUser = creator ? await ctx.db.get(creator.userId) : null;
+      const business = await ctx.db.get(deal.businessId);
+      if (!creator || !creatorUser || !business) continue;
+
+      const initials = creatorUser.name
+        .split(" ")
+        .map((w: string) => w[0]?.toUpperCase() ?? "")
+        .join("")
+        .slice(0, 3);
+      const bizShort = business.name
+        .replace(/[^a-zA-Z]/g, "")
+        .toUpperCase()
+        .slice(0, 6);
+      const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const code = `${initials}-${bizShort}-${rand}`;
+
+      const redemptions = deal.state === "completed" ? Math.floor(Math.random() * 12) + 1 : 0;
+      const codeId = await ctx.db.insert("attributionCodes", {
+        dealId: deal._id,
+        businessId: deal.businessId,
+        creatorId: deal.creatorId,
+        offerId: deal.offerId,
+        code,
+        codeType: "promo",
+        scans: 0,
+        redemptions,
+        estimatedRevenue: redemptions * (15 + Math.floor(Math.random() * 30)),
+        isActive: true,
+      });
+
+      await ctx.db.patch(deal._id, { attributionCodeId: codeId });
+      attributionCount++;
+    }
+
+    // ============================================================
+    // CONTENT ARCHIVES (for completed deals)
+    // ============================================================
+    const completedDeals = allDeals.filter((d) => d.state === "completed");
+    let archiveCount = 0;
+    for (const deal of completedDeals) {
+      const urls = deal.contentUrls ?? [`https://instagram.com/p/seed_${deal._id}`];
+      for (const url of urls) {
+        await ctx.db.insert("contentArchives", {
+          dealId: deal._id,
+          businessId: deal.businessId,
+          creatorId: deal.creatorId,
+          platform: "instagram",
+          contentType: deal.contractTerms.deliverables[0]?.type ?? "reel",
+          originalUrl: url,
+          isStillLive: true,
+          lastCheckedAt: now,
+          archivedAt: deal.completedAt ?? now,
+          businessVisible: true,
+          businessDownloaded: false,
+          usageRights: {
+            canRepostSocial: true,
+            canUseWebsite: true,
+            canUseAds: deal.contractTerms.contentTier >= 3,
+          },
+          contentCategory: "food_photo",
+          engagementRate: 0.03 + Math.random() * 0.04,
+          impressions: Math.floor(Math.random() * 5000) + 500,
+        });
+        archiveCount++;
+      }
+    }
+
+    return `Seeded: ${businessData.length} businesses, ${creatorData.length} creators, ${offersData.length} offers, 15 deals, ${attributionCount} attribution codes, ${archiveCount} content archives`;
   },
 });

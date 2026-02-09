@@ -182,24 +182,27 @@
 
 ## File Inventory
 
-### Convex Backend (15 files)
+### Convex Backend (18 files)
 | File | Purpose |
 |------|---------|
-| `schema.ts` | 11 tables, 34 indexes |
+| `schema.ts` | 13 tables, 40+ indexes |
 | `auth.config.ts` | Clerk JWT provider |
-| `constants.ts` | Shared constants (states, transitions, fees) |
+| `constants.ts` | Shared constants (states, transitions, fees, revision reasons, quality tiers, eligibility) |
 | `helpers.ts` | Shared auth utilities |
 | `users.ts` | User store/sync, getCurrent, setRole |
 | `businesses.ts` | Business CRUD |
 | `creators.ts` | Creator CRUD |
 | `offers.ts` | Offer CRUD, state machine, discover |
-| `deals.ts` | 14-state deal state machine, all mutations |
+| `deals.ts` | 14-state deal state machine, all mutations (+ revision limits, auto-approve, attribution wiring) |
 | `messages.ts` | Deal chat |
 | `notifications.ts` | Notification CRUD |
 | `analytics.ts` | Dashboard aggregation |
 | `payments.ts` | Stripe skeleton (demo mode) |
 | `disputes.ts` | Dispute lifecycle |
-| `seed.ts` | Demo data |
+| `attribution.ts` | Attribution code generation, tracking, business summary |
+| `reputation.ts` | Trust tier calculation, reliability scoring, quality thresholds, eligibility checks |
+| `contentArchives.ts` | Content library queries, filtering, categorization |
+| `seed.ts` | Demo data (including attribution codes) |
 
 ### Web App (14 pages + 5 components)
 | Page | Purpose |
@@ -238,6 +241,8 @@
 - [ ] **Production deployment** — EAS Build for mobile (App Store + Google Play), Vercel for web, production Convex deploy. Need: production Clerk + Convex keys.
 - [ ] **Push notifications (Expo)** — Register push tokens, store in users table, send via Expo Push API on deal events. Currently only in-app notifications.
 - [ ] **Instagram OAuth** — Real social account verification for creators. Requires Meta app review. Currently auto-verified in MVP.
+- [x] **Attribution system** — `attributionCodes` + `attributionEvents` tables, auto-generate promo code on deal approval, attribution summary on business dashboard
+- [x] **Content Library upgrade** — Extended `contentArchives` schema, full gallery UI (grid, filters, sort, download, usage rights)
 
 ### Medium Priority — Important for Quality
 
@@ -248,6 +253,10 @@
 - [ ] **Error boundaries** — React error boundaries on web + mobile to catch and display errors gracefully.
 - [ ] **Form validation** — Client-side validation on all forms (offer creation, onboarding, settings). Currently minimal.
 - [ ] **Loading skeletons** — Replace "Loading..." text with shimmer/skeleton UI across both platforms.
+- [x] **Quality-score-to-trust-tier linkage** — Scoring constants, demotion/promotion rules, tier adjustment logic (cron enforcement deferred)
+- [x] **Content review enhancements** — 24h auto-approve timer on `content_verified`, 1-revision limit, objective revision reason enum
+- [x] **Creator eligibility thresholds** — 1K followers, 2% engagement, local audience gating constants (Instagram OAuth enforcement deferred)
+- [x] **Trust tier progression** — `calculateTrustTier` + `calculateReliabilityScore` functions from BARTER_SYSTEM_SPEC
 
 ### Lower Priority — Nice to Have
 
@@ -263,6 +272,15 @@
 - [ ] **Rate limiting** — Prevent spam applications, message flooding.
 - [ ] **Accessibility audit** — Screen reader labels, keyboard navigation, contrast ratios.
 - [ ] **E2E tests** — Playwright for web, Detox/Maestro for mobile.
+
+### Deferred (Post-Competitive Intel Amendment)
+
+- [ ] **Attribution referral link redirect system** — `/r/CODE` → business URL redirect tracking
+- [ ] **Attribution QR code generation** — Server-side QR via `qrcode` npm package
+- [ ] **Attribution revenue reporting** — Business self-reported revenue per attribution code
+- [ ] **Pricing model switch** — Flat per-deal fees (keep current % model until Stripe integration)
+- [ ] **Quality tier cron enforcement** — Automated scheduled tier demotion/promotion (constants + logic built, cron deferred)
+- [ ] **Instagram OAuth eligibility enforcement** — Creator eligibility gating on real follower/engagement data
 
 ---
 

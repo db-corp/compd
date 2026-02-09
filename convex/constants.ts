@@ -159,6 +159,11 @@ export const NOTIFICATION_TYPES = {
   CONTENT_APPROVED: "content_approved",
   REVISION_REQUESTED: "revision_requested",
   DEAL_COMPLETED: "deal_completed",
+  QUALITY_WARNING: "quality_warning",
+  TIER_DEMOTION_PENDING: "tier_demotion_pending",
+  TIER_DEMOTED: "tier_demoted",
+  CONTENT_AUTO_APPROVED: "content_auto_approved",
+  ATTRIBUTION_CODE_GENERATED: "attribution_code_generated",
 } as const;
 
 // ============================================================
@@ -184,3 +189,111 @@ export const COMPENSATION_TYPES = {
   CASH: "cash",
   HYBRID: "hybrid",
 } as const;
+
+// ============================================================
+// REVISION REASONS (objective — business picks from these)
+// ============================================================
+export const REVISION_REASONS = {
+  MISSING_BUSINESS_TAG: "missing_business_tag",
+  MISSING_LOCATION_TAG: "missing_location_tag",
+  MISSING_ATTRIBUTION_CODE: "missing_attribution_code",
+  WRONG_CONTENT_TYPE: "wrong_content_type",
+  MISSING_REQUIRED_HASHTAGS: "missing_required_hashtags",
+  WRONG_BUSINESS_TAGGED: "wrong_business_tagged",
+  CONTENT_NOT_PUBLIC: "content_not_public",
+  CONTENT_REMOVED: "content_removed",
+} as const;
+
+export const REVISION_REASON_LABELS: Record<string, string> = {
+  missing_business_tag: "Missing business tag",
+  missing_location_tag: "Missing location tag",
+  missing_attribution_code: "Missing attribution code",
+  wrong_content_type: "Wrong content type",
+  missing_required_hashtags: "Missing required hashtags",
+  wrong_business_tagged: "Wrong business tagged",
+  content_not_public: "Content not public",
+  content_removed: "Content removed",
+};
+
+export type RevisionReason = (typeof REVISION_REASONS)[keyof typeof REVISION_REASONS];
+
+// ============================================================
+// QUALITY TIER RULES (demotion/promotion thresholds)
+// ============================================================
+export const QUALITY_TIER_RULES = {
+  IMMEDIATE_WARNING: { singleRatingBelow: 2 },
+  ROLLING_DEMOTION: {
+    avgRatingBelow: 3.0,
+    overLastNDeals: 10,
+    verificationFailRateAbove: 0.30,
+    attributionMissingAbove: 0.50,
+  },
+  CONSECUTIVE_DEMOTION: { consecutiveBelow: 3, threshold: 3 },
+  QUALITY_BONUS: {
+    avgRatingAbove: 4.5,
+    overLastNDeals: 20,
+  },
+} as const;
+
+// ============================================================
+// CREATOR ELIGIBILITY REQUIREMENTS
+// ============================================================
+export const CREATOR_ELIGIBILITY = {
+  MIN_FOLLOWERS: 1000,
+  MIN_ENGAGEMENT_RATE: 0.02,
+  ACCOUNT_MUST_BE_PUBLIC: true,
+  MIN_ACCOUNT_AGE_DAYS: 90,
+  LOCAL_AUDIENCE_PCT: 0.15,
+  LOCAL_AUDIENCE_ABSOLUTE: 200,
+} as const;
+
+// ============================================================
+// USAGE RIGHTS BY CONTENT TIER
+// ============================================================
+export const USAGE_RIGHTS_BY_TIER: Record<number, { canRepostSocial: boolean; canUseWebsite: boolean; canUseAds: boolean }> = {
+  1: { canRepostSocial: true, canUseWebsite: true, canUseAds: false },
+  2: { canRepostSocial: true, canUseWebsite: true, canUseAds: false },
+  3: { canRepostSocial: true, canUseWebsite: true, canUseAds: true },
+  4: { canRepostSocial: true, canUseWebsite: true, canUseAds: true },
+};
+
+// ============================================================
+// TRUST TIER THRESHOLDS (for calculateTrustTier)
+// ============================================================
+export const TRUST_TIER_THRESHOLDS = {
+  ESTABLISHED: {
+    minDeals: 3,
+    minFulfillmentRate: 0.80,
+    minAvgRating: 3.5,
+  },
+  TRUSTED: {
+    minDeals: 10,
+    minFulfillmentRate: 0.90,
+    minAvgRating: 4.0,
+  },
+  VERIFIED: {
+    minDeals: 25,
+    minFulfillmentRate: 0.95,
+    minAvgRating: 4.5,
+  },
+} as const;
+
+// ============================================================
+// CONTENT CATEGORIES
+// ============================================================
+export const CONTENT_CATEGORIES = [
+  { value: "food_photo", label: "Food Photo" },
+  { value: "food_video", label: "Food Video" },
+  { value: "ambiance", label: "Ambiance" },
+  { value: "service_experience", label: "Service Experience" },
+  { value: "product_showcase", label: "Product Showcase" },
+  { value: "before_after", label: "Before & After" },
+  { value: "review_testimonial", label: "Review / Testimonial" },
+  { value: "other", label: "Other" },
+] as const;
+
+// ============================================================
+// AUTO-APPROVE TIMER
+// ============================================================
+export const AUTO_APPROVE_DELAY_MS = 24 * 60 * 60 * 1000; // 24 hours
+export const MAX_REVISIONS = 1;

@@ -13,6 +13,9 @@ import {
   Star,
   ArrowRight,
   AlertCircle,
+  BarChart3,
+  Users,
+  Ticket,
 } from "lucide-react";
 import LoadingState from "@/components/ui/LoadingState";
 
@@ -35,6 +38,7 @@ const STATE_LABELS: Record<string, { label: string; color: string }> = {
 
 export default function DashboardOverview() {
   const data = useQuery(api.analytics.businessDashboard);
+  const attribution = useQuery(api.attribution.businessAttributionSummary);
 
   if (!data) {
     return <LoadingState />;
@@ -126,6 +130,74 @@ export default function DashboardOverview() {
           value={`${Math.round(business.offerAccuracyRate * 100)}%`}
         />
       </div>
+
+      {/* Attribution & ROI */}
+      {attribution && (
+        <div className="bg-white border border-neutral-100 rounded-lg shadow-sm p-5 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 size={18} strokeWidth={1.5} className="text-primary-500" />
+            <h2 className="font-serif text-lg text-neutral-800">Attribution & ROI</h2>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="bg-neutral-50 rounded-lg p-3">
+              <p className="text-xs text-neutral-500 mb-1">Active codes</p>
+              <p className="text-xl font-bold text-neutral-800">{attribution.activeCodes}</p>
+            </div>
+            <div className="bg-neutral-50 rounded-lg p-3">
+              <p className="text-xs text-neutral-500 mb-1">Redemptions</p>
+              <p className="text-xl font-bold text-neutral-800">{attribution.totalRedemptions}</p>
+            </div>
+            <div className="bg-neutral-50 rounded-lg p-3">
+              <p className="text-xs text-neutral-500 mb-1">Est. revenue</p>
+              <p className="text-xl font-bold text-neutral-800">
+                ${attribution.totalEstimatedRevenue.toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-neutral-50 rounded-lg p-3">
+              <p className="text-xs text-neutral-500 mb-1">CPA</p>
+              <p className="text-xl font-bold text-neutral-800">
+                {attribution.cpa > 0 ? `$${attribution.cpa.toFixed(2)}` : "--"}
+              </p>
+            </div>
+          </div>
+
+          {attribution.perCreator.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-neutral-600 mb-2">Per-creator breakdown</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-neutral-400 border-b border-neutral-100">
+                      <th className="text-left py-2 pr-4 font-medium">Creator</th>
+                      <th className="text-right py-2 px-2 font-medium">Deals</th>
+                      <th className="text-right py-2 px-2 font-medium">Redemptions</th>
+                      <th className="text-right py-2 pl-2 font-medium">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attribution.perCreator.map((row) => (
+                      <tr key={row.creatorId} className="border-b border-neutral-50">
+                        <td className="py-2 pr-4">
+                          <p className="text-neutral-800">{row.creatorName}</p>
+                          {row.creatorHandle && (
+                            <p className="text-xs text-neutral-400">{row.creatorHandle}</p>
+                          )}
+                        </td>
+                        <td className="text-right py-2 px-2 text-neutral-600">{row.deals}</td>
+                        <td className="text-right py-2 px-2 text-neutral-600">{row.redemptions}</td>
+                        <td className="text-right py-2 pl-2 text-neutral-700 font-medium">
+                          ${row.estimatedRevenue.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Recent deals */}
       <div className="bg-white border border-neutral-100 rounded-lg shadow-sm">

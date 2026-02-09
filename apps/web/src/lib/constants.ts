@@ -69,6 +69,34 @@ export function timeAgo(ts: number): string {
 }
 
 // ============================================================
+// REVISION REASONS
+// ============================================================
+export const REVISION_REASON_LABELS: Record<string, string> = {
+  missing_business_tag: "Missing business tag",
+  missing_location_tag: "Missing location tag",
+  missing_attribution_code: "Missing attribution code",
+  wrong_content_type: "Wrong content type",
+  missing_required_hashtags: "Missing required hashtags",
+  wrong_business_tagged: "Wrong business tagged",
+  content_not_public: "Content not public",
+  content_removed: "Content removed",
+};
+
+// ============================================================
+// CONTENT CATEGORIES
+// ============================================================
+export const CONTENT_CATEGORIES = [
+  { value: "food_photo", label: "Food Photo" },
+  { value: "food_video", label: "Food Video" },
+  { value: "ambiance", label: "Ambiance" },
+  { value: "service_experience", label: "Service Experience" },
+  { value: "product_showcase", label: "Product Showcase" },
+  { value: "before_after", label: "Before & After" },
+  { value: "review_testimonial", label: "Review / Testimonial" },
+  { value: "other", label: "Other" },
+];
+
+// ============================================================
 // URL VALIDATION
 // ============================================================
 export function isValidUrl(url: string): boolean {

@@ -225,6 +225,10 @@ export default defineSchema({
     businessReviewAction: v.optional(v.string()),
     revisionRequestedAt: v.optional(v.number()),
     revisionNote: v.optional(v.string()),
+    revisionReasons: v.optional(v.array(v.string())),
+    revisionCount: v.optional(v.number()),
+    autoApproveJobId: v.optional(v.id("_scheduled_functions")),
+    attributionCodeId: v.optional(v.id("attributionCodes")),
     commitmentDeposit: v.object({
       required: v.boolean(),
       amount: v.number(),
@@ -334,10 +338,72 @@ export default defineSchema({
     isStillLive: v.boolean(),
     lastCheckedAt: v.number(),
     archivedAt: v.number(),
+    // Content library extension fields
+    businessVisible: v.optional(v.boolean()),
+    businessDownloaded: v.optional(v.boolean()),
+    usageRights: v.optional(v.object({
+      canRepostSocial: v.boolean(),
+      canUseWebsite: v.boolean(),
+      canUseAds: v.boolean(),
+      expiresAt: v.optional(v.number()),
+    })),
+    contentCategory: v.optional(v.union(
+      v.literal("food_photo"), v.literal("food_video"), v.literal("ambiance"),
+      v.literal("service_experience"), v.literal("product_showcase"),
+      v.literal("before_after"), v.literal("review_testimonial"), v.literal("other")
+    )),
+    tags: v.optional(v.array(v.string())),
+    engagementRate: v.optional(v.number()),
+    impressions: v.optional(v.number()),
   })
     .index("by_deal", ["dealId"])
     .index("by_business", ["businessId"])
     .index("by_creator", ["creatorId"]),
+
+  // ============================================================
+  // ATTRIBUTION CODES
+  // ============================================================
+  attributionCodes: defineTable({
+    dealId: v.id("deals"),
+    businessId: v.id("businesses"),
+    creatorId: v.id("creators"),
+    offerId: v.id("offers"),
+    code: v.string(),
+    codeType: v.literal("promo"),
+    incentive: v.optional(v.object({
+      type: v.union(v.literal("discount_percent"), v.literal("discount_flat"), v.literal("free_item"), v.literal("none")),
+      value: v.optional(v.number()),
+      description: v.optional(v.string()),
+    })),
+    scans: v.number(),
+    redemptions: v.number(),
+    estimatedRevenue: v.optional(v.number()),
+    isActive: v.boolean(),
+    expiresAt: v.optional(v.number()),
+  })
+    .index("by_deal", ["dealId"])
+    .index("by_business", ["businessId"])
+    .index("by_code", ["code"])
+    .index("by_creator", ["creatorId"]),
+
+  // ============================================================
+  // ATTRIBUTION EVENTS
+  // ============================================================
+  attributionEvents: defineTable({
+    codeId: v.id("attributionCodes"),
+    businessId: v.id("businesses"),
+    eventType: v.union(
+      v.literal("code_redeemed"),
+      v.literal("revenue_reported")
+    ),
+    metadata: v.optional(v.object({
+      revenue: v.optional(v.number()),
+      source: v.optional(v.string()),
+    })),
+    timestamp: v.number(),
+  })
+    .index("by_code", ["codeId"])
+    .index("by_business_time", ["businessId", "timestamp"]),
 
   // ============================================================
   // DISPUTES

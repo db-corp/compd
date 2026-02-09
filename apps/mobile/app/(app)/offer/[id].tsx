@@ -11,14 +11,13 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ArrowLeft,
-  MapPin,
+  Camera,
   Clock,
   Calendar,
-  Camera,
-  Tag,
   Shield,
 } from "lucide-react-native";
 import { DAYS, COMP_TYPE_LABELS } from "../../../lib/constants";
+import BusinessAvatar from "../../../components/BusinessAvatar";
 
 export default function OfferDetail() {
   const { id } = useLocalSearchParams();
@@ -60,66 +59,74 @@ export default function OfferDetail() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Business info */}
+        {/* Business hero row */}
         <View style={styles.businessRow}>
-          <View>
-            <Text style={styles.businessName}>
-              {offer.business?.name ?? "Business"}
-            </Text>
+          <BusinessAvatar
+            name={offer.business?.name ?? "Business"}
+            photoUrl={offer.business?.photos?.[0]}
+            size={48}
+          />
+          <View style={styles.businessInfo}>
+            <View style={styles.businessNameRow}>
+              <Text style={styles.businessName}>
+                {offer.business?.name ?? "Business"}
+              </Text>
+              {offer.business?.isVerified && (
+                <View style={styles.verifiedBadge}>
+                  <Shield size={10} color="#1A7A6D" strokeWidth={1.5} />
+                  <Text style={styles.verifiedText}>Verified</Text>
+                </View>
+              )}
+            </View>
             {offer.business?.city && (
-              <View style={styles.locationRow}>
-                <MapPin size={12} color="#827B72" strokeWidth={1.5} />
-                <Text style={styles.locationText}>
-                  {offer.business.city}, {offer.business.state}
-                </Text>
-              </View>
+              <Text style={styles.locationText}>
+                {offer.business.city}, {offer.business.state}
+              </Text>
             )}
           </View>
-          {offer.business?.isVerified && (
-            <View style={styles.verifiedBadge}>
-              <Shield size={12} color="#1A7A6D" strokeWidth={1.5} />
-              <Text style={styles.verifiedText}>Verified</Text>
-            </View>
-          )}
         </View>
 
-        {/* Title & description */}
+        {/* Title */}
         <Text style={styles.offerTitle}>{offer.title}</Text>
-        <Text style={styles.offerDesc}>{offer.description}</Text>
 
-        {/* Value card */}
-        <View style={styles.valueCard}>
-          <View style={styles.valueRow}>
-            <Text style={styles.valueLabel}>
-              {COMP_TYPE_LABELS[offer.compensationType]} value
-            </Text>
-            <Text style={styles.valueAmount}>
-              ${offer.barterRetailValue}
+        {/* Value badges */}
+        <View style={styles.badgeRow}>
+          <View style={styles.valueBadge}>
+            <Text style={styles.valueBadgeText}>
+              ${offer.barterRetailValue}{" "}
+              {COMP_TYPE_LABELS[offer.compensationType]?.toLowerCase() ??
+                offer.compensationType}
             </Text>
           </View>
-          {offer.barterDescription && (
-            <Text style={styles.barterDesc}>{offer.barterDescription}</Text>
-          )}
           {offer.cashAmount != null && offer.cashAmount > 0 && (
-            <View style={[styles.valueRow, { marginTop: 8 }]}>
-              <Text style={styles.valueLabel}>Cash bonus</Text>
-              <Text style={styles.valueAmount}>${offer.cashAmount}</Text>
+            <View style={styles.cashBadge}>
+              <Text style={styles.cashBadgeText}>
+                +${offer.cashAmount} cash
+              </Text>
             </View>
-          )}
-          {offer.exclusions && (
-            <Text style={styles.exclusions}>
-              Exclusions: {offer.exclusions}
-            </Text>
           )}
         </View>
 
-        {/* Content requirements */}
-        <Text style={styles.sectionTitle}>Content requirements</Text>
-        <View style={styles.section}>
-          <View style={styles.row}>
-            <Camera size={14} color="#827B72" strokeWidth={1.5} />
-            <Text style={styles.rowLabel}>Tier {offer.contentTier}</Text>
+        {/* Description (shown once) */}
+        <Text style={styles.description}>{offer.description}</Text>
+        {offer.exclusions && (
+          <Text style={styles.exclusions}>
+            Exclusions: {offer.exclusions}
+          </Text>
+        )}
+
+        {/* Content requirements card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <Camera size={16} color="#E8573D" strokeWidth={1.5} />
+              <Text style={styles.cardTitle}>What to post</Text>
+            </View>
+            <View style={styles.tierBadge}>
+              <Text style={styles.tierText}>Tier {offer.contentTier}</Text>
+            </View>
           </View>
+
           {offer.deliverables.map((d, i) => (
             <View key={i} style={styles.deliverableRow}>
               <Text style={styles.deliverablePlatform}>
@@ -131,31 +138,38 @@ export default function OfferDetail() {
               </Text>
             </View>
           ))}
-          <View style={[styles.row, { marginTop: 8 }]}>
-            <Clock size={14} color="#827B72" strokeWidth={1.5} />
-            <Text style={styles.rowLabel}>
-              Post within {offer.contentWindowHours}h · Keep up{" "}
+
+          <View style={styles.timingRow}>
+            <Clock size={13} color="#827B72" strokeWidth={1.5} />
+            <Text style={styles.timingText}>
+              Post within {offer.contentWindowHours}h{" "}
+              <Text style={styles.timingDot}>&middot;</Text> Keep up{" "}
               {offer.persistenceDays} days
             </Text>
           </View>
+
+          {/* Hashtags (teal) */}
           {offer.requiredHashtags.length > 0 && (
-            <View style={styles.tagsRow}>
+            <View style={styles.chipRow}>
               {offer.requiredHashtags.map((h, i) => (
-                <View key={i} style={styles.tagChip}>
-                  <Text style={styles.tagText}>{h}</Text>
+                <View key={i} style={styles.hashtagChip}>
+                  <Text style={styles.hashtagText}>{h}</Text>
                 </View>
               ))}
             </View>
           )}
+
+          {/* @mentions (amber) */}
           {offer.requiredTags.length > 0 && (
-            <View style={styles.tagsRow}>
+            <View style={styles.chipRow}>
               {offer.requiredTags.map((t, i) => (
-                <View key={i} style={styles.tagChip}>
-                  <Text style={styles.tagText}>{t}</Text>
+                <View key={i} style={styles.mentionChip}>
+                  <Text style={styles.mentionText}>{t}</Text>
                 </View>
               ))}
             </View>
           )}
+
           {offer.creativeDirection && (
             <View style={styles.directionBox}>
               <Text style={styles.directionLabel}>Creative direction</Text>
@@ -166,18 +180,33 @@ export default function OfferDetail() {
           )}
         </View>
 
-        {/* Availability */}
-        <Text style={styles.sectionTitle}>Availability</Text>
-        <View style={styles.section}>
+        {/* Availability card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <Calendar size={16} color="#E8573D" strokeWidth={1.5} />
+              <Text style={styles.cardTitle}>Availability</Text>
+            </View>
+          </View>
+
           {offer.availabilityWindows.map((w, i) => (
-            <View key={i} style={styles.availabilityRow}>
-              <Calendar size={14} color="#827B72" strokeWidth={1.5} />
-              <Text style={styles.rowLabel}>
-                {w.dayOfWeek.map((d) => DAYS[d]).join(", ")} · {w.startTime}–
-                {w.endTime}
+            <View
+              key={i}
+              style={[
+                styles.availRow,
+                i < offer.availabilityWindows.length - 1 &&
+                  styles.availRowBorder,
+              ]}
+            >
+              <Text style={styles.availDays}>
+                {w.dayOfWeek.map((d) => DAYS[d]).join(", ")}
+              </Text>
+              <Text style={styles.availTime}>
+                {w.startTime}–{w.endTime}
               </Text>
             </View>
           ))}
+
           <Text style={styles.redemptionNote}>
             Max {offer.maxRedemptionsPerWeek} redemptions per week
           </Text>
@@ -210,6 +239,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#A39D94",
   },
+
+  // ── Header ──────────────────────────
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -234,6 +265,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#2A2622",
   },
+
+  // ── Scroll area ─────────────────────
   scroll: {
     flex: 1,
   },
@@ -241,114 +274,137 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 120,
   },
+
+  // ── Business hero ───────────────────
   businessRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  businessName: {
-    fontFamily: "DMSans_700Bold",
-    fontSize: 15,
-    color: "#615B53",
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
-  },
-  locationText: {
-    fontFamily: "DMSans_400Regular",
-    fontSize: 12,
-    color: "#827B72",
-  },
-  verifiedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#EEF8F6",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  verifiedText: {
-    fontFamily: "DMSans_500Medium",
-    fontSize: 11,
-    color: "#1A7A6D",
-  },
-  offerTitle: {
-    fontFamily: "DMSerifDisplay_400Regular",
-    fontSize: 26,
-    color: "#2A2622",
-    marginBottom: 8,
-  },
-  offerDesc: {
-    fontFamily: "DMSans_400Regular",
-    fontSize: 15,
-    color: "#615B53",
-    lineHeight: 22,
+    gap: 14,
     marginBottom: 20,
   },
-  valueCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#F0EDE8",
-    marginBottom: 24,
+  businessInfo: {
+    flex: 1,
   },
-  valueRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  valueLabel: {
-    fontFamily: "DMSans_500Medium",
-    fontSize: 14,
-    color: "#827B72",
-  },
-  valueAmount: {
-    fontFamily: "DMSans_700Bold",
-    fontSize: 22,
-    color: "#2A2622",
-  },
-  barterDesc: {
-    fontFamily: "DMSans_400Regular",
-    fontSize: 13,
-    color: "#A39D94",
-    marginTop: 4,
-  },
-  exclusions: {
-    fontFamily: "DMSans_400Regular",
-    fontSize: 12,
-    color: "#A39D94",
-    fontStyle: "italic",
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontFamily: "DMSans_700Bold",
-    fontSize: 16,
-    color: "#2A2622",
-    marginBottom: 10,
-  },
-  section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#F0EDE8",
-    marginBottom: 24,
-  },
-  row: {
+  businessNameRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  rowLabel: {
+  businessName: {
+    fontFamily: "DMSans_700Bold",
+    fontSize: 16,
+    color: "#2A2622",
+  },
+  verifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#EEF8F6",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  verifiedText: {
+    fontFamily: "DMSans_500Medium",
+    fontSize: 10,
+    color: "#1A7A6D",
+  },
+  locationText: {
     fontFamily: "DMSans_400Regular",
+    fontSize: 13,
+    color: "#827B72",
+    marginTop: 2,
+  },
+
+  // ── Title & badges ──────────────────
+  offerTitle: {
+    fontFamily: "DMSerifDisplay_400Regular",
+    fontSize: 26,
+    color: "#2A2622",
+    marginBottom: 12,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  valueBadge: {
+    backgroundColor: "#FEF2F0",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  valueBadgeText: {
+    fontFamily: "DMSans_700Bold",
     fontSize: 14,
+    color: "#E8573D",
+  },
+  cashBadge: {
+    backgroundColor: "#EEF8F6",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  cashBadgeText: {
+    fontFamily: "DMSans_700Bold",
+    fontSize: 14,
+    color: "#1A7A6D",
+  },
+
+  // ── Description ─────────────────────
+  description: {
+    fontFamily: "DMSans_400Regular",
+    fontSize: 15,
     color: "#615B53",
+    lineHeight: 22,
+    marginBottom: 6,
+  },
+  exclusions: {
+    fontFamily: "DMSans_400Regular",
+    fontSize: 13,
+    color: "#A39D94",
+    fontStyle: "italic",
+    marginBottom: 6,
+  },
+
+  // ── Shared card ─────────────────────
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#F0EDE8",
+    marginTop: 18,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  cardHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  cardTitle: {
+    fontFamily: "DMSans_700Bold",
+    fontSize: 15,
+    color: "#2A2622",
+  },
+
+  // ── Content requirements ────────────
+  tierBadge: {
+    backgroundColor: "#FEF2F0",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  tierText: {
+    fontFamily: "DMSans_500Medium",
+    fontSize: 11,
+    color: "#E8573D",
   },
   deliverableRow: {
     flexDirection: "row",
@@ -357,7 +413,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FAF8F5",
     borderRadius: 8,
     padding: 10,
-    marginTop: 8,
+    marginBottom: 6,
   },
   deliverablePlatform: {
     fontFamily: "DMSans_500Medium",
@@ -369,22 +425,48 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#615B53",
   },
-  tagsRow: {
+  timingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  timingText: {
+    fontFamily: "DMSans_400Regular",
+    fontSize: 13,
+    color: "#615B53",
+  },
+  timingDot: {
+    color: "#A39D94",
+  },
+  chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    marginTop: 10,
+    marginTop: 8,
   },
-  tagChip: {
+  hashtagChip: {
     backgroundColor: "#EEF8F6",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  tagText: {
+  hashtagText: {
     fontFamily: "DMSans_500Medium",
     fontSize: 12,
     color: "#1A7A6D",
+  },
+  mentionChip: {
+    backgroundColor: "#FEF7E7",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  mentionText: {
+    fontFamily: "DMSans_500Medium",
+    fontSize: 12,
+    color: "#A4750F",
   },
   directionBox: {
     backgroundColor: "#FAF8F5",
@@ -404,18 +486,36 @@ const styles = StyleSheet.create({
     color: "#615B53",
     lineHeight: 19,
   },
-  availabilityRow: {
+
+  // ── Availability ────────────────────
+  availRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
+    paddingVertical: 10,
+  },
+  availRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0EDE8",
+  },
+  availDays: {
+    fontFamily: "DMSans_500Medium",
+    fontSize: 14,
+    color: "#2A2622",
+  },
+  availTime: {
+    fontFamily: "DMSans_400Regular",
+    fontSize: 14,
+    color: "#615B53",
   },
   redemptionNote: {
     fontFamily: "DMSans_400Regular",
     fontSize: 12,
     color: "#A39D94",
-    marginTop: 4,
+    marginTop: 8,
   },
+
+  // ── Bottom bar ──────────────────────
   bottomBar: {
     position: "absolute",
     bottom: 0,

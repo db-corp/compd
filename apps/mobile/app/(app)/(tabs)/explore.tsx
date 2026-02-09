@@ -12,6 +12,7 @@ import { useState, useCallback } from "react";
 import { useRouter } from "expo-router";
 import { MapPin, Tag, Star, ChevronRight, Bell } from "lucide-react-native";
 import { EXPLORE_CATEGORIES as CATEGORIES, COMP_TYPE_LABELS } from "../../../lib/constants";
+import BusinessAvatar from "../../../components/BusinessAvatar";
 
 export default function Explore() {
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -121,6 +122,11 @@ export default function Explore() {
             >
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
+                  <BusinessAvatar
+                    name={item.business?.name ?? "Business"}
+                    photoUrl={item.business?.photos?.[0]}
+                    size={36}
+                  />
                   <Text style={styles.businessName}>
                     {item.business?.name ?? "Business"}
                   </Text>

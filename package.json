@@ -1,0 +1,20 @@
+{
+  "name": "compd",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:mobile": "npm run start --workspace=apps/mobile",
+    "dev:convex": "npx convex dev"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "convex": "^1.31.7"
+  }
+}

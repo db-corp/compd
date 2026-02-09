@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Fonts */
+  --font-serif: var(--font-dm-serif), Georgia, serif;
+  --font-sans: var(--font-dm-sans), -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Primary — Coral */
+  --color-primary-50: #FEF2F0;
+  --color-primary-100: #FCDDD8;
+  --color-primary-200: #F8AFA4;
+  --color-primary-300: #F28172;
+  --color-primary-400: #ED6A54;
+  --color-primary-500: #E8573D;
+  --color-primary-600: #C94832;
+  --color-primary-700: #A33928;
+  --color-primary-800: #7D2B1E;
+  --color-primary-900: #571E14;
+
+  /* Secondary — Teal */
+  --color-secondary-50: #EEF8F6;
+  --color-secondary-100: #D0EDEA;
+  --color-secondary-200: #93D4CC;
+  --color-secondary-300: #56BBAF;
+  --color-secondary-400: #2E9A8D;
+  --color-secondary-500: #1A7A6D;
+  --color-secondary-600: #15655A;
+  --color-secondary-700: #104F46;
+  --color-secondary-800: #0B3A33;
+  --color-secondary-900: #072520;
+
+  /* Accent — Amber Gold */
+  --color-accent-50: #FEF7E7;
+  --color-accent-100: #FCECC4;
+  --color-accent-200: #F5D47B;
+  --color-accent-300: #EFBE3F;
+  --color-accent-400: #E8A917;
+  --color-accent-500: #C99013;
+  --color-accent-600: #A4750F;
+
+  /* Neutral — Warm */
+  --color-neutral-0: #FFFFFF;
+  --color-neutral-25: #FDFCFA;
+  --color-neutral-50: #FAF8F5;
+  --color-neutral-100: #F0EDE8;
+  --color-neutral-200: #E0DBD4;
+  --color-neutral-300: #C5BFB6;
+  --color-neutral-400: #A39D94;
+  --color-neutral-500: #827B72;
+  --color-neutral-600: #615B53;
+  --color-neutral-700: #423D37;
+  --color-neutral-800: #2A2622;
+  --color-neutral-900: #181614;
+
+  /* Semantic */
+  --color-success: #2D8F5F;
+  --color-warning: #D4870B;
+  --color-error: #C93B3B;
+  --color-info: #2B7CB5;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(24,22,20,0.08), 0 1px 2px rgba(24,22,20,0.06);
+  --shadow-md: 0 4px 6px rgba(24,22,20,0.07), 0 2px 4px rgba(24,22,20,0.06);
+  --shadow-lg: 0 10px 15px rgba(24,22,20,0.08), 0 4px 6px rgba(24,22,20,0.05);
+
+  /* Border Radius */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+}
+
+body {
+  background-color: var(--color-neutral-25);
+  color: var(--color-neutral-800);
+}

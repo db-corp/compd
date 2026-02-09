@@ -64,6 +64,7 @@ export default function Explore() {
         data={CATEGORIES}
         keyExtractor={(item) => item.key}
         contentContainerStyle={styles.filterRow}
+        style={{ flexGrow: 0, flexShrink: 0 }}
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() => setSelectedCategory(item.key)}
@@ -202,7 +203,8 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingRight: 32,
+    paddingVertical: 12,
     gap: 8,
   },
   filterChip: {

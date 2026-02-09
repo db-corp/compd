@@ -120,7 +120,7 @@
 
 ### Polish
 - [x] **Mobile** — Enhanced profile with avatar, trust tier progress bar, 4 performance metrics, social accounts, notification bell
-- [x] **Web** — Landing page redesign (hero, how it works, features, CTA, footer)
+- [x] **Web** — Landing page redesign (stan.store-inspired) — bold coral gradient hero with floating card composition, SocialProof (tilted profile cards), testimonial masonry wall (CSS columns), "$0 Cash Required" BigStat callout, "Not Just Another Marketplace" HowItWorks with decorative step numbers, Comparison table (traditional vs Comp'd), 3 FeatureShowcase sections with app mockups (trust tiers, deal tracking, content verification), clean CTA, minimal footer. ScrollReveal + CSS keyframe animations, prefers-reduced-motion support. 12 component files.
 - [x] **Web** — Onboarding role selection (business → setup, creator → mobile redirect)
 
 ---

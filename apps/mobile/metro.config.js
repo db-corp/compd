@@ -1,18 +1,9 @@
 const { getDefaultConfig } = require("expo/metro-config");
 const path = require("path");
 
-const projectRoot = __dirname;
-const monorepoRoot = path.resolve(projectRoot, "../..");
+const config = getDefaultConfig(__dirname);
 
-const config = getDefaultConfig(projectRoot);
-
-// Watch the monorepo root and convex directory for changes
-config.watchFolders = [monorepoRoot];
-
-// Resolve modules from both the mobile app and monorepo root
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, "node_modules"),
-  path.resolve(monorepoRoot, "node_modules"),
-];
+// Watch the monorepo root so Metro can resolve convex/ and packages/
+config.watchFolders = [path.resolve(__dirname, "../..")];
 
 module.exports = config;

@@ -24,6 +24,7 @@ export default function TabsLayout() {
           color: "#2A2622",
         },
         headerShadowVisible: false,
+        animation: "shift",
       }}
     >
       <Tabs.Screen
@@ -50,6 +51,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: "Profile",
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <User size={size} color={color} strokeWidth={1.5} />
           ),

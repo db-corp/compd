@@ -12,6 +12,7 @@ import {
   Settings,
   Menu,
   X,
+  BarChart3,
 } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/offers", label: "Offers", icon: Tag },
   { href: "/dashboard/deals", label: "Deals", icon: Handshake },
   { href: "/dashboard/content", label: "Content Library", icon: ImageIcon },
+  { href: "/dashboard/attribution", label: "Attribution", icon: BarChart3 },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 

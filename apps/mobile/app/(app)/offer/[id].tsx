@@ -1,11 +1,14 @@
+import { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -15,6 +18,7 @@ import {
   Clock,
   Calendar,
   Shield,
+  AlertTriangle,
 } from "lucide-react-native";
 import { DAYS, COMP_TYPE_LABELS } from "../../../lib/constants";
 import BusinessAvatar from "../../../components/BusinessAvatar";
@@ -24,6 +28,29 @@ export default function OfferDetail() {
   const offerId = id as string as Id<"offers">;
   const router = useRouter();
   const offer = useQuery(api.offers.getById, { id: offerId });
+  const creator = useQuery(api.creators.getCurrent);
+  const applyMutation = useMutation(api.deals.apply);
+  const [applying, setApplying] = useState(false);
+
+  const isIneligible = creator && !creator.instagramConnected && !creator.tiktokConnected;
+
+  const handleApply = async () => {
+    if (!offer || isIneligible) return;
+    setApplying(true);
+    try {
+      await applyMutation({
+        offerId,
+        scheduledDate: Date.now() + 7 * 24 * 60 * 60 * 1000, // Default: 1 week out
+      });
+      Alert.alert("Applied!", "Your application has been submitted.", [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    } catch (err: any) {
+      Alert.alert("Could not apply", err.message ?? "Something went wrong");
+    } finally {
+      setApplying(false);
+    }
+  };
 
   if (offer === undefined) {
     return (
@@ -213,10 +240,31 @@ export default function OfferDetail() {
         </View>
       </ScrollView>
 
+      {/* Eligibility banner */}
+      {creator && !creator.instagramConnected && !creator.tiktokConnected && (
+        <View style={styles.eligibilityBanner}>
+          <AlertTriangle size={16} color="#A4750F" strokeWidth={1.5} />
+          <Text style={styles.eligibilityText}>
+            Connect a social account in Settings to apply to offers
+          </Text>
+        </View>
+      )}
+
       {/* Apply button */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.applyButton} activeOpacity={0.8}>
-          <Text style={styles.applyButtonText}>Apply to this offer</Text>
+        <TouchableOpacity
+          style={[styles.applyButton, (isIneligible || applying) && styles.applyButtonDisabled]}
+          activeOpacity={0.8}
+          onPress={handleApply}
+          disabled={!!isIneligible || applying}
+        >
+          {applying ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.applyButtonText}>
+              {isIneligible ? "Connect a social account to apply" : "Apply to this offer"}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -515,6 +563,24 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 
+  // ── Eligibility banner ─────────────
+  eligibilityBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEF7E7",
+    borderTopWidth: 1,
+    borderTopColor: "#F5E6B8",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  eligibilityText: {
+    fontFamily: "DMSans_400Regular",
+    fontSize: 13,
+    color: "#A4750F",
+    flex: 1,
+  },
+
   // ── Bottom bar ──────────────────────
   bottomBar: {
     position: "absolute",
@@ -532,6 +598,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
+  },
+  applyButtonDisabled: {
+    backgroundColor: "#A39D94",
   },
   applyButtonText: {
     fontFamily: "DMSans_700Bold",

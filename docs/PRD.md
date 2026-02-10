@@ -99,29 +99,31 @@ The core innovation is the **Barter Protocol** — a structured system for manag
 ### Onboarding Flows
 
 **Business Onboarding (must be frictionless):**
-1. Sign up with email or Google
-2. Business name + category + address
-3. Connect Instagram (optional but recommended — shows their existing presence)
-4. Upload 3+ photos of their business/products
-5. Add payment method
-6. Create first offer (guided wizard)
-7. → Dashboard
+1. Sign up with email or Google (Clerk auth)
+2. Business name + category + address (with "Use my location" GPS option on mobile)
+3. Upload up to 5 photos of their business/products (Convex file storage)
+4. Website URL + Google Business URL (optional)
+5. Connect Instagram (optional — shows their existing presence)
+6. → Dashboard (payment method + first offer creation from dashboard)
 
 Target: Under 10 minutes from signup to first offer live.
 
-**Creator Onboarding:**
-1. Sign up with email or Google
-2. Connect Instagram and/or TikTok via OAuth (mandatory — at least one)
-3. Platform pulls metrics and audience data automatically
-4. Creator fills in bio, location, content niches
-5. Add card on file (explained as "commitment deposit for deal fulfillment, you're never charged unless you don't follow through")
-6. Platform evaluates and assigns initial trust tier
-7. → Browse available offers
+*Implemented:* Mobile 3-field setup with photo upload + GPS + website. Web setup with category select + website/Google Business URL fields.
+
+**Creator Onboarding (4-step wizard on mobile):**
+1. Sign up with email or Google (Clerk auth)
+2. **Step 1 — About You:** Profile photo upload, bio, content niches (required)
+3. **Step 2 — Location:** City/state with "Use my location" GPS button + geocoding
+4. **Step 3 — Connect Accounts:** Instagram and/or TikTok via OAuth. Manual handle entry fallback for dev/testing. Duplicate handle prevention (no two users can claim same handle). After connection: shows verified badge, follower count, engagement rate.
+5. **Step 4 — Review:** Summary of all data, "Complete Setup" CTA
+6. → Browse available offers (Explore tab)
+
+*Note:* Social account connection is currently optional (OAuth requires Meta App Review + TikTok Developer Portal approval). The `ENFORCE_SOCIAL_ELIGIBILITY` feature flag (default `false`) controls whether eligibility requirements are enforced on deal applications. When enabled:
 
 Minimum requirements for creator approval:
-- At least 500 followers on one connected platform
+- At least 1,000 followers on one connected platform
 - Account must be at least 90 days old
-- Engagement rate above 1.5%
+- Engagement rate above 2%
 - Public account (private accounts can't fulfill content obligations)
 
 ---

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Save, Building2, MapPin, Globe, Instagram, CreditCard, CheckCircle } from "lucide-react";
+import { Save, Building2, MapPin, Globe, Instagram, CreditCard, CheckCircle, Link2, Unlink } from "lucide-react";
 import { CATEGORIES } from "@/lib/constants";
 import LoadingState from "@/components/ui/LoadingState";
 
@@ -17,6 +17,7 @@ export default function SettingsPage() {
   const createStripeAccount = useMutation(api.payments.createBusinessStripeAccount);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -51,6 +52,7 @@ export default function SettingsPage() {
 
   async function handleSave() {
     setSaving(true);
+    setSaveError("");
     try {
       await updateBusiness({
         name: form.name || undefined,
@@ -66,6 +68,8 @@ export default function SettingsPage() {
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } catch (err: any) {
+      setSaveError(err.message ?? "Failed to save changes");
     } finally {
       setSaving(false);
     }
@@ -93,6 +97,12 @@ export default function SettingsPage() {
           {saving ? "Saving..." : saved ? "Saved!" : "Save changes"}
         </button>
       </div>
+
+      {saveError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-6">
+          <p className="text-sm text-red-600">{saveError}</p>
+        </div>
+      )}
 
       {/* Business Info */}
       <Section
@@ -217,6 +227,46 @@ export default function SettingsPage() {
             placeholder="https://g.page/yourbusiness"
           />
         </Field>
+      </Section>
+
+      {/* Connected Accounts */}
+      <Section
+        icon={<Link2 size={18} strokeWidth={1.5} className="text-pink-500" />}
+        title="Connected accounts"
+      >
+        <div className="flex items-center justify-between bg-neutral-50 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <Instagram size={20} strokeWidth={1.5} className="text-pink-500" />
+            <div>
+              <p className="text-sm font-medium text-neutral-800">Instagram</p>
+              {business.instagramConnected && business.instagramHandle ? (
+                <p className="text-xs text-neutral-500">
+                  @{business.instagramHandle} &middot; Connected
+                </p>
+              ) : (
+                <p className="text-xs text-neutral-400">Not connected</p>
+              )}
+            </div>
+          </div>
+          {business.instagramConnected ? (
+            <div className="flex items-center gap-2">
+              <CheckCircle size={16} strokeWidth={1.5} className="text-green-500" />
+              <span className="text-xs text-green-600 font-medium">Verified</span>
+            </div>
+          ) : (
+            <button
+              disabled
+              title="OAuth connection requires Meta App Review. Use manual handle entry above."
+              className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 border border-neutral-200 rounded-md px-3 py-1.5 cursor-not-allowed"
+            >
+              <Link2 size={14} strokeWidth={1.5} />
+              Connect
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-neutral-400 mt-2">
+          Instagram OAuth requires Meta App Review. Manual handle entry is available in the Online Presence section above.
+        </p>
       </Section>
 
       {/* Payments */}

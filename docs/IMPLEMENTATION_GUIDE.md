@@ -161,6 +161,32 @@
 - Invoice/receipt generation
 ```
 
+### Sprint 8: Social Integration + Onboarding Polish — COMPLETE
+**Actual effort: 1 long Claude Code session**
+
+```bash
+# Completed tasks:
+- Schema indexes for duplicate handle prevention (by_instagram_handle, by_tiktok_handle)
+- ENFORCE_SOCIAL_ELIGIBILITY feature flag in constants.ts
+- convex/socialAuth.ts — connect/disconnect mutations with duplicate prevention
+- convex/http.ts — HTTP router with Instagram/TikTok OAuth callbacks + deauth
+- Mobile OAuth libs (instagramAuth.ts, tiktokAuth.ts) using expo-auth-session
+- Geolocation lib (geolocation.ts) with GPS + geocoding
+- Image upload lib (imagePicker.ts) + Convex file storage (files.ts)
+- Creator onboarding rewritten as 4-step wizard (About/Location/Accounts/Review)
+- Business onboarding rewritten with photo uploads + GPS + website field
+- Web onboarding updated with website/Google Business URL + shared CATEGORIES
+- Mobile settings screen with connected accounts management
+- Web dashboard settings with connected accounts section
+- Eligibility enforcement in deals.apply behind feature flag
+- Social metrics refresh cron (socialMetrics.ts + crons.ts)
+- Content metrics tracking (contentMetrics.ts — fetches post engagement from APIs)
+- Attribution dashboard page (attribution/page.tsx — filters, revenue reporting, per-creator ROI)
+- Attribution nav item added to dashboard sidebar
+```
+
+**Note:** Instagram/TikTok OAuth requires Meta App Review + TikTok Developer Portal approval. All code is ready to enable — set env vars and flip `ENFORCE_SOCIAL_ELIGIBILITY = true`.
+
 ---
 
 ## 2. Claude Code Session Strategy

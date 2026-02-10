@@ -297,3 +297,8 @@ export const CONTENT_CATEGORIES = [
 // ============================================================
 export const AUTO_APPROVE_DELAY_MS = 24 * 60 * 60 * 1000; // 24 hours
 export const MAX_REVISIONS = 1;
+
+// ============================================================
+// FEATURE FLAGS
+// ============================================================
+export const ENFORCE_SOCIAL_ELIGIBILITY = false;

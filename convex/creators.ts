@@ -15,6 +15,7 @@ export const create = mutation({
     longitude: v.number(),
     instagramHandle: v.optional(v.string()),
     tiktokHandle: v.optional(v.string()),
+    profilePhotoId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -28,6 +29,7 @@ export const create = mutation({
 
     return await ctx.db.insert("creators", {
       userId: user._id,
+      profilePhotoId: args.profilePhotoId,
       bio: args.bio,
       niches: args.niches,
       city: args.city,

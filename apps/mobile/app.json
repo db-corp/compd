@@ -32,7 +32,19 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Comp'd needs your location to find nearby businesses."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Comp'd needs access to your photos for profile and content uploads."
+        }
+      ]
     ]
   }
 }

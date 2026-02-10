@@ -101,8 +101,10 @@ Dylan asked about Convex — here's the honest assessment:
 │  │             DATA LAYER                              │        │
 │  │                                                     │        │
 │  │  Tables: users, businesses, creators, offers,       │        │
-│  │          deals, messages, ratings, notifications,    │        │
-│  │          content_archives, disputes, scheduled_jobs  │        │
+│  │          deals, messages, notifications,            │        │
+│  │          contentArchives, attributionCodes,         │        │
+│  │          attributionEvents, disputes, scheduledJobs,│        │
+│  │          blocks                                     │        │
 │  │                                                     │        │
 │  │  File Storage: content archives, business photos,   │        │
 │  │                creator portfolios                   │        │
@@ -1024,65 +1026,51 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 
 ### Instagram OAuth + Data Fetching
 
-```typescript
-// convex/http.ts — OAuth callback handler
-import { httpRouter } from "convex/server";
-import { httpAction } from "./_generated/server";
+**Implemented in:** `convex/http.ts`, `convex/socialAuth.ts`, `apps/mobile/lib/instagramAuth.ts`
 
-const http = httpRouter();
+The OAuth flow works as follows:
+1. Mobile app initiates OAuth via `expo-auth-session` to `https://api.instagram.com/oauth/authorize`
+2. User authorizes, Instagram redirects with auth code
+3. Mobile app sends code to `POST /auth/instagram/callback` (Convex HTTP endpoint)
+4. HTTP endpoint exchanges code → short-lived token → long-lived token (60 days)
+5. Calls `socialAuth.connectInstagram` mutation which:
+   - Checks for duplicate handle via `by_instagram_handle` index
+   - Stores token, handle, follower count, engagement rate
+   - Sets `instagramConnected: true` on creator profile
 
-http.route({
-  path: "/auth/instagram/callback",
-  method: "GET",
-  handler: httpAction(async (ctx, request) => {
-    const url = new URL(request.url);
-    const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state"); // contains userId
-    
-    // Exchange code for token
-    const tokenResponse = await fetch("https://api.instagram.com/oauth/access_token", {
-      method: "POST",
-      body: new URLSearchParams({
-        client_id: process.env.INSTAGRAM_CLIENT_ID!,
-        client_secret: process.env.INSTAGRAM_CLIENT_SECRET!,
-        grant_type: "authorization_code",
-        redirect_uri: `${process.env.CONVEX_SITE_URL}/auth/instagram/callback`,
-        code: code!,
-      }),
-    });
-    
-    const { access_token, user_id } = await tokenResponse.json();
-    
-    // Exchange for long-lived token
-    const longLivedResponse = await fetch(
-      `https://graph.instagram.com/access_token?` +
-      `grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_CLIENT_SECRET}&access_token=${access_token}`
-    );
-    const { access_token: longToken, expires_in } = await longLivedResponse.json();
-    
-    // Store token and fetch initial profile data
-    await ctx.runMutation("instagram:storeToken", {
-      userId: state!, // from OAuth state parameter
-      accessToken: longToken,
-      expiresIn: expires_in,
-      instagramUserId: user_id,
-    });
-    
-    // Trigger initial profile data fetch
-    await ctx.runAction("instagram:fetchAndStoreProfile", {
-      userId: state!,
-    });
-    
-    // Redirect back to app
-    return new Response(null, {
-      status: 302,
-      headers: { Location: `${process.env.APP_URL}/onboarding/instagram-connected` },
-    });
-  }),
-});
+**Duplicate handle prevention:** Both `creators` and `businesses` tables have `by_instagram_handle` indexes. The `connectInstagram` mutation queries the index before connecting to prevent two users from claiming the same handle.
 
-export default http;
-```
+**Feature flag:** `ENFORCE_SOCIAL_ELIGIBILITY` (default `false`) in `convex/constants.ts`. When `true`, the `deals.apply` mutation calls `checkCreatorEligibility()` from `reputation.ts` to verify minimum follower count (1K), engagement rate (2%), etc. before allowing applications.
+
+**Meta App Review required:** The OAuth code is complete but requires Meta App Review approval before real tokens can be obtained. Manual handle entry is available as a fallback for development/testing.
+
+### TikTok OAuth
+
+**Implemented in:** `convex/http.ts`, `convex/socialAuth.ts`, `apps/mobile/lib/tiktokAuth.ts`
+
+Same pattern as Instagram, using TikTok's OAuth2 endpoint at `https://www.tiktok.com/v2/auth/authorize/`. Token exchange via `POST https://open.tiktokapis.com/v2/oauth/token/`. Requires TikTok Developer Portal approval.
+
+### Social Metrics Refresh
+
+**Implemented in:** `convex/socialMetrics.ts`, `convex/crons.ts`
+
+Daily cron job at 06:00 UTC queries all creators with `instagramConnected: true` or `tiktokConnected: true`, fetches updated follower counts and engagement rates from the respective APIs, and updates creator profiles.
+
+### Content Metrics Tracking
+
+**Implemented in:** `convex/contentMetrics.ts`
+
+- `fetchPostMetrics` (internalAction) — Given a content URL + platform, extracts media ID from URL pattern, fetches likes/comments/views/impressions from IG Graph API or TikTok API
+- `updateArchiveMetrics` (internalMutation) — Writes metrics to the `contentArchives` record
+- Triggered on content submission and via daily cron
+
+### File Storage
+
+**Implemented in:** `convex/files.ts`
+
+- `generateUploadUrl` mutation — returns a Convex storage upload URL
+- `getUrl` query — resolves a storage ID to a public URL
+- Used by: business photo uploads (onboarding), creator profile photos (onboarding)
 
 ### Stripe Integration Pattern
 
@@ -1145,129 +1133,150 @@ export const captureDeposit = action({
 
 ## 6. Cron Jobs
 
+### Currently Implemented (`convex/crons.ts`)
+
 ```typescript
-// convex/crons.ts
 import { cronJobs } from "convex/server";
+import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-// Check for expired content windows every 15 minutes
-crons.interval(
-  "check content windows",
-  { minutes: 15 },
-  "monitoring:processExpiredContentWindows"
-);
-
-// Check post persistence every 6 hours
-crons.interval(
-  "check post persistence",
-  { hours: 6 },
-  "monitoring:checkPostPersistence"
-);
-
-// Process potential no-shows every 30 minutes
-crons.interval(
-  "check no-shows",
-  { minutes: 30 },
-  "monitoring:processNoShows"
-);
-
-// Refresh creator social metrics daily (stagger to avoid rate limits)
+// Refresh social metrics daily at 06:00 UTC
 crons.daily(
-  "refresh creator metrics",
+  "refresh social metrics",
   { hourUTC: 6, minuteUTC: 0 },
-  "instagram:refreshAllCreatorMetrics"
-);
-
-// Reset weekly redemption counters
-crons.weekly(
-  "reset weekly redemptions",
-  { dayOfWeek: "monday", hourUTC: 5, minuteUTC: 0 },
-  "offers:resetWeeklyRedemptions"
+  internal.socialMetrics.refreshAll
 );
 
 export default crons;
 ```
+
+### Planned (Not Yet Implemented)
+
+```typescript
+// Check for expired content windows every 15 minutes
+crons.interval("check content windows", { minutes: 15 }, internal.monitoring.processExpiredContentWindows);
+
+// Check post persistence every 6 hours
+crons.interval("check post persistence", { hours: 6 }, internal.monitoring.checkPostPersistence);
+
+// Process potential no-shows every 30 minutes
+crons.interval("check no-shows", { minutes: 30 }, internal.monitoring.processNoShows);
+
+// Reset weekly redemption counters
+crons.weekly("reset weekly redemptions", { dayOfWeek: "monday", hourUTC: 5, minuteUTC: 0 }, internal.offers.resetWeeklyRedemptions);
+```
+
+### Additional Scheduled Functions (per-deal, not cron)
+
+- **Auto-approve content:** `deals.autoApproveContent` — scheduled via `ctx.scheduler.runAfter(24 * 60 * 60 * 1000, ...)` when deal enters `content_verified` state. Cancelled on manual approve or revision request.
 
 ---
 
 ## 7. Project Structure
 
 ```
-compd/
+creator-app/
 ├── apps/
-│   ├── mobile/                    # React Native / Expo
-│   │   ├── app/                   # Expo Router file-based routing
-│   │   │   ├── (auth)/            # Auth screens
-│   │   │   ├── (business)/        # Business-specific screens
-│   │   │   │   ├── dashboard.tsx
-│   │   │   │   ├── offers/
-│   │   │   │   ├── deals/
-│   │   │   │   └── settings.tsx
-│   │   │   ├── (creator)/         # Creator-specific screens
-│   │   │   │   ├── explore.tsx    # Browse offers
-│   │   │   │   ├── deals/
-│   │   │   │   ├── profile.tsx
-│   │   │   │   └── settings.tsx
-│   │   │   └── (shared)/          # Shared screens
-│   │   │       ├── chat/[dealId].tsx
-│   │   │       └── deal/[dealId].tsx
+│   ├── mobile/                           # React Native / Expo (SDK 54)
+│   │   ├── app/
+│   │   │   ├── _layout.tsx               # Root layout (fonts, auth gate)
+│   │   │   ├── onboarding/
+│   │   │   │   ├── index.tsx             # Role select
+│   │   │   │   ├── creator-setup.tsx     # 4-step wizard (About/Location/Accounts/Review)
+│   │   │   │   └── business-setup.tsx    # Business setup with photo upload + GPS
+│   │   │   ├── (auth)/
+│   │   │   │   ├── sign-in.tsx
+│   │   │   │   └── sign-up.tsx
+│   │   │   └── (app)/
+│   │   │       ├── (tabs)/
+│   │   │       │   ├── explore.tsx       # Offer discovery with category filters
+│   │   │       │   ├── deals.tsx         # Active/Pending/Past deal filters
+│   │   │       │   └── profile.tsx       # Trust tier, stats, social, gear → settings
+│   │   │       ├── offer/[id].tsx        # Offer detail + eligibility banner
+│   │   │       ├── deal/[id].tsx         # Deal detail with Details/Chat tabs
+│   │   │       ├── notifications.tsx     # Notification list
+│   │   │       └── settings.tsx          # Connected accounts management
 │   │   ├── components/
-│   │   ├── hooks/
+│   │   │   ├── OnboardingWizard.tsx      # Shared wizard (progress bar, step dots, nav)
+│   │   │   ├── BusinessAvatar.tsx
+│   │   │   ├── LoadingState.tsx
+│   │   │   ├── EmptyState.tsx
+│   │   │   ├── StateBadge.tsx
+│   │   │   └── NotificationBadge.tsx
 │   │   ├── lib/
+│   │   │   ├── constants.ts             # STATE_CONFIG, CATEGORIES, NICHES, etc.
+│   │   │   ├── theme.ts                 # Design token re-exports
+│   │   │   ├── instagramAuth.ts         # OAuth2 flow (expo-auth-session)
+│   │   │   ├── tiktokAuth.ts            # OAuth2 flow (expo-auth-session)
+│   │   │   ├── geolocation.ts           # GPS, geocoding, reverse geocoding
+│   │   │   └── imagePicker.ts           # Image picking + Convex upload
 │   │   └── app.json
 │   │
-│   └── web/                       # Next.js (business dashboard + marketing site)
-│       ├── app/
-│       │   ├── (marketing)/       # Landing page, pricing, etc.
-│       │   ├── (dashboard)/       # Authenticated business dashboard
-│       │   │   ├── overview/
-│       │   │   ├── offers/
-│       │   │   ├── deals/
-│       │   │   ├── content-library/
-│       │   │   ├── analytics/
-│       │   │   └── settings/
-│       │   └── (admin)/           # Platform admin
-│       ├── components/
-│       └── lib/
+│   └── web/                              # Next.js 16 (business dashboard + landing)
+│       └── src/
+│           ├── app/
+│           │   ├── page.tsx              # Landing page (hero, features, CTA)
+│           │   ├── sign-in/              # Clerk auth
+│           │   ├── sign-up/
+│           │   ├── onboarding/page.tsx   # Role select → business setup
+│           │   └── dashboard/
+│           │       ├── layout.tsx        # Sidebar nav (Overview, Offers, Deals, Content, Attribution, Settings)
+│           │       ├── page.tsx          # Analytics overview
+│           │       ├── offers/           # Offer list, create wizard, detail
+│           │       ├── deals/            # Deal list, detail
+│           │       ├── content/page.tsx  # Content library
+│           │       ├── attribution/page.tsx  # Attribution dashboard + ROI tracking
+│           │       └── settings/page.tsx # Profile, connected accounts, payments
+│           ├── components/
+│           │   ├── ui/                   # LoadingState, EmptyState, StateBadge
+│           │   └── NotificationBell.tsx
+│           └── lib/
+│               └── constants.ts          # STATE_CONFIG, CATEGORIES, utils
+│
+├── convex/                               # Convex backend (at monorepo root)
+│   ├── schema.ts                         # 13 tables, 40+ indexes
+│   ├── auth.config.ts                    # Clerk JWT provider
+│   ├── constants.ts                      # States, transitions, fees, eligibility, feature flags
+│   ├── helpers.ts                        # Auth utilities
+│   ├── users.ts                          # User CRUD
+│   ├── businesses.ts                     # Business CRUD
+│   ├── creators.ts                       # Creator CRUD
+│   ├── offers.ts                         # Offer state machine + discovery
+│   ├── deals.ts                          # 14-state deal machine + eligibility enforcement
+│   ├── messages.ts                       # Deal chat
+│   ├── notifications.ts                  # Notification CRUD
+│   ├── analytics.ts                      # Dashboard aggregation
+│   ├── payments.ts                       # Stripe skeleton (demo)
+│   ├── disputes.ts                       # Dispute lifecycle
+│   ├── attribution.ts                    # Promo code generation + tracking
+│   ├── reputation.ts                     # Trust tiers, reliability, eligibility
+│   ├── contentArchives.ts               # Content library queries
+│   ├── socialAuth.ts                     # Instagram/TikTok connect/disconnect + duplicate prevention
+│   ├── socialMetrics.ts                  # Cron-driven metrics refresh
+│   ├── contentMetrics.ts                 # Post metrics from social APIs
+│   ├── http.ts                           # HTTP router (OAuth callbacks, deauth)
+│   ├── files.ts                          # Convex file storage
+│   ├── crons.ts                          # Scheduled jobs
+│   ├── seed.ts                           # Demo data
+│   └── _generated/                       # Convex generated types
 │
 ├── packages/
-│   ├── design-tokens/             # Shared design system tokens
-│   │   ├── colors.ts              # Full palette (light + dark)
-│   │   ├── typography.ts          # Font families + type scale
-│   │   ├── spacing.ts             # Spacing scale + layout aliases
-│   │   ├── radius.ts              # Border radius scale
-│   │   ├── shadows.ts             # Shadow/elevation (native + web)
-│   │   ├── motion.ts              # Animation timing/easing
-│   │   ├── theme.ts               # Assembled Theme interface + light/dark objects
-│   │   └── index.ts               # Main export
-│   │
-│   └── convex/                    # Shared Convex backend
-│       ├── schema.ts
-│       ├── auth.ts
-│       ├── deals.ts               # Deal state machine + mutations
-│       ├── offers.ts              # Offer CRUD + discovery queries
-│       ├── creators.ts            # Creator profiles + reputation
-│       ├── businesses.ts          # Business profiles + dashboard queries
-│       ├── messages.ts            # In-app chat
-│       ├── notifications.ts       # Notification management + push
-│       ├── monitoring.ts          # Content verification + persistence checks
-│       ├── reputation.ts          # Score calculation + tier management
-│       ├── stripe.ts              # Payment actions
-│       ├── instagram.ts           # Instagram API actions
-│       ├── tiktok.ts              # TikTok API actions
-│       ├── crons.ts               # Scheduled jobs
-│       ├── http.ts                # HTTP routes (OAuth callbacks, webhooks)
-│       └── _generated/            # Convex generated types
+│   └── design-tokens/                    # Shared design system tokens
+│       ├── colors.ts, typography.ts, spacing.ts, radius.ts
+│       ├── shadows.ts, motion.ts, theme.ts
+│       └── index.ts
 │
-├── docs/                          # These documents
+├── docs/
 │   ├── PRD.md
-│   ├── BARTER_SYSTEM_SPEC.md
 │   ├── TECHNICAL_ARCHITECTURE.md
 │   ├── IMPLEMENTATION_GUIDE.md
-│   └── BRAND_GUIDELINES.md        # Brand identity & design system spec
+│   ├── BRAND_GUIDELINES.md
+│   └── AMENDMENT_POST_COMPETITIVE_INTEL.md
 │
-└── package.json                   # Monorepo root (npm workspaces or turborepo)
+├── BARTER_SYSTEM_SPEC.md
+├── PROGRESS.md
+└── package.json                          # Monorepo root (npm workspaces)
 ```
 
 ---
@@ -1276,40 +1285,39 @@ compd/
 
 ```bash
 # Convex
-CONVEX_DEPLOYMENT=           # Convex deployment URL
-NEXT_PUBLIC_CONVEX_URL=      # Public Convex URL for client
+CONVEX_DEPLOYMENT=                          # Convex deployment URL
+CONVEX_URL=                                 # Convex cloud URL (.env.local root)
+NEXT_PUBLIC_CONVEX_URL=                     # Public Convex URL for web client
+EXPO_PUBLIC_CONVEX_URL=                     # Public Convex URL for mobile client
 
 # Auth (Clerk)
 CLERK_SECRET_KEY=
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=
 
-# Instagram
-INSTAGRAM_CLIENT_ID=
-INSTAGRAM_CLIENT_SECRET=
-INSTAGRAM_REDIRECT_URI=
+# Instagram OAuth (Convex env vars — set after Meta App Review)
+META_APP_ID=                                # Meta/Instagram App ID
+META_APP_SECRET=                            # Meta/Instagram App Secret
 
-# TikTok
+# TikTok OAuth (Convex env vars — set after Developer Portal approval)
 TIKTOK_CLIENT_KEY=
 TIKTOK_CLIENT_SECRET=
 
-# Stripe
+# Stripe (not yet active — demo mode)
 STRIPE_SECRET_KEY=
 STRIPE_PUBLISHABLE_KEY=
 STRIPE_WEBHOOK_SECRET=
 
-# Google Maps
-GOOGLE_MAPS_API_KEY=
-
-# Push Notifications
-EXPO_PUSH_TOKEN=             # If using Expo Push
-# OR
-ONESIGNAL_APP_ID=
-ONESIGNAL_REST_API_KEY=
+# Push Notifications (not yet implemented)
+EXPO_PUSH_TOKEN=
 
 # App URLs
-APP_URL=                     # Deep link base URL
-WEB_URL=                     # Web dashboard URL
+APP_URL=                                    # Deep link base URL
+WEB_URL=                                    # Web dashboard URL
 ```
+
+**Feature flags in `convex/constants.ts`:**
+- `ENFORCE_SOCIAL_ELIGIBILITY` (default `false`) — Set to `true` when Meta/TikTok OAuth is approved to enforce creator eligibility requirements (1K followers, 2% engagement, etc.) on deal applications.
 
 ---
 

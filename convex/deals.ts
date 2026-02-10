@@ -2,8 +2,8 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { requireUser, getBusinessForUser, getCreatorForUser } from "./helpers";
-import { VALID_DEAL_TRANSITIONS, DEPOSIT_AMOUNTS, TERMINAL_DEAL_STATES, AUTO_APPROVE_DELAY_MS, MAX_REVISIONS, USAGE_RIGHTS_BY_TIER } from "./constants";
-import { calculateTrustTier, calculateReliabilityScore } from "./reputation";
+import { VALID_DEAL_TRANSITIONS, DEPOSIT_AMOUNTS, TERMINAL_DEAL_STATES, AUTO_APPROVE_DELAY_MS, MAX_REVISIONS, USAGE_RIGHTS_BY_TIER, ENFORCE_SOCIAL_ELIGIBILITY } from "./constants";
+import { calculateTrustTier, calculateReliabilityScore, checkCreatorEligibility } from "./reputation";
 
 // ============================================================
 // STATE MACHINE
@@ -74,6 +74,19 @@ export const apply = mutation({
     }
     if (offer.visibility === "trusted_plus" && !["trusted", "verified"].includes(creator.trustTier)) {
       throw new Error("This offer is only available to trusted creators and above");
+    }
+
+    // Eligibility enforcement (only when flag is on AND creator has a connected account)
+    if (ENFORCE_SOCIAL_ELIGIBILITY && (creator.instagramConnected || creator.tiktokConnected)) {
+      const eligibility = checkCreatorEligibility({
+        followerCount: Math.max(creator.instagramFollowerCount ?? 0, creator.tiktokFollowerCount ?? 0),
+        engagementRate: Math.max(creator.instagramEngagementRate ?? 0, creator.tiktokEngagementRate ?? 0),
+        accountAgeDays: creator.instagramAccountAge,
+        localAudiencePct: creator.instagramLocalAudiencePct,
+      });
+      if (!eligibility.eligible) {
+        throw new Error(`Eligibility requirements not met: ${eligibility.reasons.join("; ")}`);
+      }
     }
 
     // Check for existing active deal between this creator and offer

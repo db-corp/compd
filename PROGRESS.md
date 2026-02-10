@@ -6,7 +6,7 @@
 |-------|-----------|---------|
 | Backend | Convex | Real-time database, mutations, queries, auth |
 | Web | Next.js 16 + Tailwind | Business dashboard |
-| Mobile | Expo SDK 52 + Expo Router | Creator app |
+| Mobile | Expo SDK 54 + Expo Router | Creator app |
 | Auth | Clerk | JWT-based auth, "convex" JWT template |
 | Payments | Stripe (demo mode) | Deposits, fees, payouts |
 | Design | @compd/design-tokens | Colors, typography, spacing, shadows |
@@ -125,6 +125,62 @@
 
 ---
 
+## Phase 6: Social Integration + Onboarding Polish — COMPLETE
+
+### Schema + Duplicate Prevention
+- [x] Added `by_instagram_handle` index to businesses table
+- [x] Added `by_instagram_handle` and `by_tiktok_handle` indexes to creators table
+- [x] `ENFORCE_SOCIAL_ELIGIBILITY = false` feature flag in `convex/constants.ts`
+- [x] `convex/socialAuth.ts` — `checkHandleDuplicate` query, `connectInstagram`/`connectTikTok`/`disconnectInstagram`/`disconnectTikTok` mutations, `updateCreatorMetrics` internalMutation. Duplicate handle prevention via index queries.
+
+### OAuth Infrastructure
+- [x] `convex/http.ts` — HTTP router with Instagram/TikTok OAuth callback endpoints + Meta deauthorize endpoint
+  - `POST /auth/instagram/callback` — code→token exchange (short→long-lived)
+  - `POST /auth/tiktok/callback` — code→token exchange via TikTok API
+  - `POST /auth/instagram/deauthorize` — Meta-required deauth callback
+- [x] `apps/mobile/lib/instagramAuth.ts` — expo-auth-session OAuth2 flow to Instagram
+- [x] `apps/mobile/lib/tiktokAuth.ts` — expo-auth-session OAuth2 flow to TikTok
+- [x] Installed: `expo-auth-session`, `expo-web-browser`, `expo-location`, `expo-image-picker`
+
+### Geolocation + Image Uploads
+- [x] `apps/mobile/lib/geolocation.ts` — `getCurrentLocation()`, `geocodeAddress()`, `reverseGeocode()` using expo-location
+- [x] `convex/files.ts` — `generateUploadUrl` mutation + `getUrl` query (Convex built-in storage)
+- [x] `apps/mobile/lib/imagePicker.ts` — `pickImage()` + `uploadToConvex()` helpers
+- [x] Updated `app.json` with expo-location and expo-image-picker plugins + permission strings
+
+### Creator Onboarding Redesign (Mobile)
+- [x] `apps/mobile/components/OnboardingWizard.tsx` — shared wizard with progress bar, step dots, back/next nav
+- [x] Rewrote `apps/mobile/app/onboarding/creator-setup.tsx` as 4-step wizard:
+  - Step 1 — About You: profile photo upload, bio, content niches
+  - Step 2 — Location: city/state with "Use my location" GPS button + geocoding
+  - Step 3 — Connect Accounts: Instagram/TikTok OAuth buttons with manual handle fallback, duplicate detection
+  - Step 4 — Review: summary of all data, "Complete Setup" CTA
+
+### Business Onboarding Parity
+- [x] Rewrote `apps/mobile/app/onboarding/business-setup.tsx` with photo uploads (up to 5), geocoding, website field
+- [x] Updated `apps/web/src/app/onboarding/page.tsx` — shared CATEGORIES from constants, added website + Google Business URL fields
+
+### Social Account Management + Settings
+- [x] Created `apps/mobile/app/(app)/settings.tsx` — connected accounts section (IG/TikTok status, metrics, disconnect)
+- [x] Updated `apps/mobile/app/(app)/(tabs)/profile.tsx` — gear icon linking to settings
+- [x] Updated `apps/web/src/app/dashboard/settings/page.tsx` — connected accounts section with connect/disconnect
+
+### Eligibility Enforcement + Cron Jobs
+- [x] Updated `convex/deals.ts` `apply` mutation — eligibility check using `ENFORCE_SOCIAL_ELIGIBILITY` flag + `checkCreatorEligibility()`
+- [x] Created `convex/socialMetrics.ts` — `refreshAll` internalAction (fetches updated IG/TikTok metrics for connected creators)
+- [x] Created `convex/crons.ts` — daily cron at 06:00 UTC calling `socialMetrics.refreshAll`
+- [x] Updated `apps/mobile/app/(app)/offer/[id].tsx` — eligibility banner when no social accounts connected
+
+### Attribution, ROI & Content Metrics
+- [x] Created `convex/contentMetrics.ts` — `fetchPostMetrics` internalAction (IG + TikTok APIs), `updateArchiveMetrics` internalMutation
+- [x] Created `apps/web/src/app/dashboard/attribution/page.tsx` — full attribution dashboard with summary stats, filter tabs, codes table, revenue reporting form, per-creator breakdown
+- [x] Updated `apps/web/src/app/dashboard/layout.tsx` — added Attribution nav item
+
+### Note on Social OAuth
+Instagram/TikTok OAuth requires Meta App Review and TikTok Developer Portal approval. All code infrastructure is built and ready to enable. Set env vars (`META_APP_ID`, `META_APP_SECRET`, `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`) and flip `ENFORCE_SOCIAL_ELIGIBILITY = true` when approved.
+
+---
+
 ## Code Quality Cleanup — COMPLETE
 
 ### Runtime Fixes
@@ -182,18 +238,18 @@
 
 ## File Inventory
 
-### Convex Backend (18 files)
+### Convex Backend (23 files)
 | File | Purpose |
 |------|---------|
-| `schema.ts` | 13 tables, 40+ indexes |
+| `schema.ts` | 13 tables, 40+ indexes (incl. by_instagram_handle, by_tiktok_handle) |
 | `auth.config.ts` | Clerk JWT provider |
-| `constants.ts` | Shared constants (states, transitions, fees, revision reasons, quality tiers, eligibility) |
+| `constants.ts` | Shared constants (states, transitions, fees, revision reasons, quality tiers, eligibility, ENFORCE_SOCIAL_ELIGIBILITY flag) |
 | `helpers.ts` | Shared auth utilities |
 | `users.ts` | User store/sync, getCurrent, setRole |
 | `businesses.ts` | Business CRUD |
 | `creators.ts` | Creator CRUD |
 | `offers.ts` | Offer CRUD, state machine, discover |
-| `deals.ts` | 14-state deal state machine, all mutations (+ revision limits, auto-approve, attribution wiring) |
+| `deals.ts` | 14-state deal state machine, all mutations (+ revision limits, auto-approve, attribution wiring, eligibility enforcement) |
 | `messages.ts` | Deal chat |
 | `notifications.ts` | Notification CRUD |
 | `analytics.ts` | Dashboard aggregation |
@@ -202,14 +258,20 @@
 | `attribution.ts` | Attribution code generation, tracking, business summary |
 | `reputation.ts` | Trust tier calculation, reliability scoring, quality thresholds, eligibility checks |
 | `contentArchives.ts` | Content library queries, filtering, categorization |
+| `socialAuth.ts` | Instagram/TikTok connect/disconnect mutations, duplicate handle prevention |
+| `socialMetrics.ts` | Cron-driven IG/TikTok metrics refresh for connected creators |
+| `contentMetrics.ts` | Fetch post metrics (likes/comments/views) from social APIs |
+| `http.ts` | HTTP router — OAuth callbacks (Instagram, TikTok), deauthorize endpoint |
+| `files.ts` | Convex file storage — generateUploadUrl + getUrl |
+| `crons.ts` | Daily cron (06:00 UTC social metrics refresh) |
 | `seed.ts` | Demo data (including attribution codes) |
 
-### Web App (14 pages + 5 components)
+### Web App (15 pages + 5 components)
 | Page | Purpose |
 |------|---------|
 | Landing | Hero, how it works, features, CTA |
 | Sign-in/Sign-up | Clerk auth |
-| Onboarding | Role select → business setup or creator redirect |
+| Onboarding | Role select → business setup (with website/Google Business URL) or creator redirect |
 | Dashboard | Analytics overview with stat cards + activity feed |
 | Offers list | Filter tabs, state management, action menus |
 | Offer create | 4-step wizard |
@@ -217,19 +279,30 @@
 | Deals list | Filter tabs, inline approve/decline |
 | Deal detail | Creator info, contract, payment, content, chat, disputes |
 | Content library | Content submissions grid |
-| Settings | Business profile editor, payments, account stats |
+| Attribution | Full attribution dashboard with filters, revenue reporting, per-creator ROI |
+| Settings | Business profile editor, connected accounts, payments, account stats |
 
-### Mobile App (16 screens)
+### Mobile App (17 screens + 1 shared component)
 | Screen | Purpose |
 |--------|---------|
 | Auth (sign-in/sign-up) | Clerk auth |
-| Onboarding (3 screens) | Role select, business setup, creator setup |
+| Onboarding (3 screens) | Role select, business setup (photos/GPS), creator setup (4-step wizard) |
 | Explore tab | Offer discovery with category filters |
 | Deals tab | Active/Pending/Past deal filters |
-| Profile tab | Trust tier progress, stats, social, sign out |
-| Offer detail | Full offer with apply button |
+| Profile tab | Trust tier progress, stats, social, gear → settings |
+| Offer detail | Full offer with apply button + eligibility banner |
 | Deal detail | Details/Chat tabs, actions, payment info, disputes |
 | Notifications | Notification list with unread indicators |
+| Settings | Connected accounts management (IG/TikTok connect/disconnect) |
+
+### Mobile Libraries (5 files)
+| File | Purpose |
+|------|---------|
+| `lib/instagramAuth.ts` | expo-auth-session OAuth2 flow for Instagram |
+| `lib/tiktokAuth.ts` | expo-auth-session OAuth2 flow for TikTok |
+| `lib/geolocation.ts` | GPS location, geocoding, reverse geocoding |
+| `lib/imagePicker.ts` | Image picking + upload to Convex storage |
+| `components/OnboardingWizard.tsx` | Shared wizard with progress bar, step dots, navigation |
 
 ---
 
@@ -240,23 +313,27 @@
 - [ ] **Real Stripe integration** — Install `stripe` package, add `STRIPE_SECRET_KEY`, uncomment real Stripe calls in `convex/payments.ts`. Need: Stripe account + Connect setup.
 - [ ] **Production deployment** — EAS Build for mobile (App Store + Google Play), Vercel for web, production Convex deploy. Need: production Clerk + Convex keys.
 - [ ] **Push notifications (Expo)** — Register push tokens, store in users table, send via Expo Push API on deal events. Currently only in-app notifications.
-- [ ] **Instagram OAuth** — Real social account verification for creators. Requires Meta app review. Currently auto-verified in MVP.
-- [x] **Attribution system** — `attributionCodes` + `attributionEvents` tables, auto-generate promo code on deal approval, attribution summary on business dashboard
+- [ ] **Meta App Review + TikTok Developer Portal** — OAuth code is built, need platform approval to enable real social verification. Set env vars and flip `ENFORCE_SOCIAL_ELIGIBILITY = true`.
+- [x] **Instagram/TikTok OAuth infrastructure** — Full OAuth code (mobile + Convex HTTP callbacks), connect/disconnect mutations, duplicate handle prevention, feature flag
+- [x] **Attribution system** — `attributionCodes` + `attributionEvents` tables, auto-generate promo code on deal approval, attribution summary on business dashboard, dedicated attribution page with revenue reporting
 - [x] **Content Library upgrade** — Extended `contentArchives` schema, full gallery UI (grid, filters, sort, download, usage rights)
 
 ### Medium Priority — Important for Quality
 
-- [ ] **Cron jobs / scheduled functions** — Auto-expire deals past content deadline, auto-no-show after 24h, reminder sequences (24h before, 1h before scheduled date).
-- [ ] **Geolocation check-in** — Use device GPS to verify creator is at business location. Currently manual/code-based only.
-- [ ] **Content verification pipeline** — Check Instagram/TikTok API for required tags, hashtags, location tags. Currently auto-verifies all submissions.
-- [ ] **Image uploads** — Storefront photos for businesses, content proof for creators. Needs Convex file storage or S3.
+- [ ] **Content verification pipeline** — Check Instagram/TikTok API for required tags, hashtags, location tags. Currently auto-verifies all submissions. (contentMetrics.ts fetches engagement metrics, but doesn't verify tag/hashtag compliance)
+- [ ] **Geolocation check-in** — GPS infrastructure built (`geolocation.ts`), but check-in still uses manual 4-digit codes. Wire GPS proximity verification into deal check-in flow.
 - [ ] **Error boundaries** — React error boundaries on web + mobile to catch and display errors gracefully.
 - [ ] **Form validation** — Client-side validation on all forms (offer creation, onboarding, settings). Currently minimal.
 - [ ] **Loading skeletons** — Replace "Loading..." text with shimmer/skeleton UI across both platforms.
-- [x] **Quality-score-to-trust-tier linkage** — Scoring constants, demotion/promotion rules, tier adjustment logic (cron enforcement deferred)
+- [ ] **Quality tier cron enforcement** — Automated scheduled tier demotion/promotion (constants + logic built, cron infra ready, enforcement deferred)
+- [x] **Cron jobs / scheduled functions** — Daily social metrics refresh at 06:00 UTC. Content auto-approve via `ctx.scheduler.runAfter`. (Deal expiry/no-show crons still needed)
+- [x] **Image uploads** — Convex file storage (`convex/files.ts`), image picker (`imagePicker.ts`), wired into onboarding (business photos, creator profile photo)
+- [x] **Quality-score-to-trust-tier linkage** — Scoring constants, demotion/promotion rules, tier adjustment logic
 - [x] **Content review enhancements** — 24h auto-approve timer on `content_verified`, 1-revision limit, objective revision reason enum
-- [x] **Creator eligibility thresholds** — 1K followers, 2% engagement, local audience gating constants (Instagram OAuth enforcement deferred)
+- [x] **Creator eligibility thresholds** — 1K followers, 2% engagement, local audience gating. Enforcement in `deals.apply` behind feature flag
 - [x] **Trust tier progression** — `calculateTrustTier` + `calculateReliabilityScore` functions from BARTER_SYSTEM_SPEC
+- [x] **Social metrics refresh** — `convex/socialMetrics.ts` daily cron fetches updated IG/TikTok follower counts + engagement rates
+- [x] **Content metrics tracking** — `convex/contentMetrics.ts` fetches post likes/comments/views from social APIs
 
 ### Lower Priority — Nice to Have
 
@@ -265,6 +342,8 @@
 - [ ] **Creator web dashboard** — Optional read-only dashboard for creators who prefer desktop. Currently redirect to mobile.
 - [ ] **Admin panel** — Platform admin for dispute resolution, user management, analytics. Currently disputes resolved by either party.
 - [ ] **QR code check-in** — Generate + scan QR codes for check-in instead of 4-digit codes.
+- [ ] **Attribution QR code generation** — Server-side QR via `qrcode` npm package for promo codes.
+- [ ] **Attribution referral link redirect system** — `/r/CODE` → business URL redirect tracking.
 - [ ] **Search** — Full-text search for offers on mobile explore tab.
 - [ ] **Pagination** — Cursor-based pagination for offers/deals/notifications lists (currently `.collect()` or `.take()`).
 - [ ] **Analytics export** — CSV/PDF export of business analytics and deal history.
@@ -272,15 +351,8 @@
 - [ ] **Rate limiting** — Prevent spam applications, message flooding.
 - [ ] **Accessibility audit** — Screen reader labels, keyboard navigation, contrast ratios.
 - [ ] **E2E tests** — Playwright for web, Detox/Maestro for mobile.
-
-### Deferred (Post-Competitive Intel Amendment)
-
-- [ ] **Attribution referral link redirect system** — `/r/CODE` → business URL redirect tracking
-- [ ] **Attribution QR code generation** — Server-side QR via `qrcode` npm package
-- [ ] **Attribution revenue reporting** — Business self-reported revenue per attribution code
+- [ ] **Deal expiry crons** — Auto-expire deals past content deadline, auto-no-show after 24h, reminder sequences.
 - [ ] **Pricing model switch** — Flat per-deal fees (keep current % model until Stripe integration)
-- [ ] **Quality tier cron enforcement** — Automated scheduled tier demotion/promotion (constants + logic built, cron deferred)
-- [ ] **Instagram OAuth eligibility enforcement** — Creator eligibility gating on real follower/engagement data
 
 ---
 
@@ -295,6 +367,10 @@
 | `CLERK_SECRET_KEY` | `apps/web/.env.local` | `sk_test_...` |
 | `EXPO_PUBLIC_CONVEX_URL` | `apps/mobile/.env.local` | `https://outgoing-wildcat-675.convex.cloud` |
 | `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | `apps/mobile/.env.local` | `pk_test_...` |
+| `META_APP_ID` | Convex env vars | *(required for IG OAuth — set after Meta App Review)* |
+| `META_APP_SECRET` | Convex env vars | *(required for IG OAuth — set after Meta App Review)* |
+| `TIKTOK_CLIENT_KEY` | Convex env vars | *(required for TikTok OAuth — set after Developer Portal approval)* |
+| `TIKTOK_CLIENT_SECRET` | Convex env vars | *(required for TikTok OAuth — set after Developer Portal approval)* |
 
 ## Useful Commands
 

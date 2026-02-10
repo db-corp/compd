@@ -13,12 +13,11 @@ import {
   Bell,
   LogOut,
   Shield,
-  Star,
   Award,
   TrendingUp,
   Instagram,
   AtSign,
-  ChevronRight,
+  Settings,
 } from "lucide-react-native";
 import { TIER_CONFIG } from "../../../lib/constants";
 
@@ -45,6 +44,13 @@ export default function Profile() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.heading}>Profile</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <TouchableOpacity
+            onPress={() => router.push("/(app)/settings")}
+            style={{ padding: 4 }}
+          >
+            <Settings size={22} color="#2A2622" strokeWidth={1.5} />
+          </TouchableOpacity>
         <TouchableOpacity
           onPress={() => router.push("/(app)/notifications")}
           style={{ padding: 4, position: "relative" }}
@@ -58,6 +64,7 @@ export default function Profile() {
             </View>
           )}
         </TouchableOpacity>
+        </View>
       </View>
 
       {/* Profile card */}
@@ -166,9 +173,9 @@ export default function Profile() {
               <View style={styles.socialRow}>
                 <Instagram size={16} color="#C13584" strokeWidth={1.5} />
                 <Text style={styles.socialText}>@{creator.instagramHandle}</Text>
-                {creator.instagramFollowerCount > 0 && (
+                {(creator.instagramFollowerCount ?? 0) > 0 && (
                   <Text style={styles.followerCount}>
-                    {creator.instagramFollowerCount.toLocaleString()} followers
+                    {creator.instagramFollowerCount!.toLocaleString()} followers
                   </Text>
                 )}
               </View>

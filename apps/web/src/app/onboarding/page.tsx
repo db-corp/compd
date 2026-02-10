@@ -5,14 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 
-const CATEGORIES = [
-  { value: "restaurant", label: "Restaurant" },
-  { value: "salon", label: "Salon / Barber" },
-  { value: "med_spa", label: "Med Spa" },
-  { value: "fitness", label: "Fitness Studio" },
-  { value: "retail", label: "Retail / Boutique" },
-  { value: "other", label: "Other" },
-];
+import { CATEGORIES } from "@/lib/constants";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -29,7 +22,10 @@ export default function OnboardingPage() {
   const [state, setState] = useState("");
   const [zipCode, setZipCode] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
+  const [website, setWebsite] = useState("");
+  const [googleBusinessUrl, setGoogleBusinessUrl] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSelectRole = async () => {
     try {
@@ -47,8 +43,23 @@ export default function OnboardingPage() {
       return;
     }
     setError("");
+    setSubmitting(true);
 
     try {
+      // TODO: Replace with browser Geolocation API or geocoding service.
+      // For now, attempt browser geolocation, fall back to Raleigh defaults.
+      let lat = 35.7796;
+      let lng = -78.6382;
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+        );
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+      } catch {
+        // Browser geolocation unavailable or denied — use defaults
+      }
+
       await createBusiness({
         name,
         category,
@@ -57,14 +68,18 @@ export default function OnboardingPage() {
         city,
         state,
         zipCode,
-        latitude: 35.7796,
-        longitude: -78.6382,
+        latitude: lat,
+        longitude: lng,
         instagramHandle: instagramHandle || undefined,
+        website: website || undefined,
+        googleBusinessUrl: googleBusinessUrl || undefined,
         photos: [],
       });
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message ?? "Setup failed");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -285,11 +300,38 @@ export default function OnboardingPage() {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-neutral-800 mb-1">
+              Website
+            </label>
+            <input
+              type="url"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              className="w-full border border-neutral-100 rounded-md px-4 py-3 text-neutral-800 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="https://yourbusiness.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-800 mb-1">
+              Google Business URL
+            </label>
+            <input
+              type="url"
+              value={googleBusinessUrl}
+              onChange={(e) => setGoogleBusinessUrl(e.target.value)}
+              className="w-full border border-neutral-100 rounded-md px-4 py-3 text-neutral-800 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="https://g.page/yourbusiness"
+            />
+          </div>
+
           <button
             onClick={handleSubmitBusiness}
-            className="w-full bg-primary-500 text-white font-bold text-sm py-3 rounded-md hover:bg-primary-600 transition-colors mt-4"
+            disabled={submitting}
+            className="w-full bg-primary-500 text-white font-bold text-sm py-3 rounded-md hover:bg-primary-600 disabled:opacity-50 transition-colors mt-4"
           >
-            Complete setup
+            {submitting ? "Setting up..." : "Complete setup"}
           </button>
         </div>
       </div>

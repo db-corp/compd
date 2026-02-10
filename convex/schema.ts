@@ -43,6 +43,7 @@ export default defineSchema({
     instagramAccessToken: v.optional(v.string()),
     tiktokHandle: v.optional(v.string()),
     tiktokConnected: v.boolean(),
+    tiktokAccessToken: v.optional(v.string()),
     website: v.optional(v.string()),
     googleBusinessUrl: v.optional(v.string()),
     photos: v.array(v.string()),
@@ -60,13 +61,16 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_city", ["city", "state"])
     .index("by_category", ["category"])
-    .index("by_location", ["latitude", "longitude"]),
+    .index("by_location", ["latitude", "longitude"])
+    .index("by_instagram_handle", ["instagramHandle"])
+    .index("by_tiktok_handle", ["tiktokHandle"]),
 
   // ============================================================
   // CREATORS
   // ============================================================
   creators: defineTable({
     userId: v.id("users"),
+    profilePhotoId: v.optional(v.id("_storage")),
     bio: v.optional(v.string()),
     niches: v.array(v.string()),
     city: v.string(),
@@ -85,6 +89,8 @@ export default defineSchema({
     tiktokHandle: v.optional(v.string()),
     tiktokConnected: v.boolean(),
     tiktokAccessToken: v.optional(v.string()),
+    tiktokRefreshToken: v.optional(v.string()),
+    tiktokTokenExpiry: v.optional(v.number()),
     tiktokFollowerCount: v.optional(v.number()),
     tiktokEngagementRate: v.optional(v.number()),
     trustTier: v.string(),
@@ -102,13 +108,15 @@ export default defineSchema({
     isSuspended: v.boolean(),
     suspensionReason: v.optional(v.string()),
     createdAt: v.number(),
-    metricsLastUpdatedAt: v.number(),
+    metricsLastUpdatedAt: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_city", ["city", "state"])
     .index("by_trust_tier", ["trustTier"])
     .index("by_reliability", ["reliabilityScore"])
-    .index("by_location", ["latitude", "longitude"]),
+    .index("by_location", ["latitude", "longitude"])
+    .index("by_instagram_handle", ["instagramHandle"])
+    .index("by_tiktok_handle", ["tiktokHandle"]),
 
   // ============================================================
   // OFFERS
